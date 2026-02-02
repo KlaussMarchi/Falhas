@@ -23,19 +23,6 @@ def setFolder(path):
         shutil.rmtree(path)
     os.makedirs(path)
 
-
-    h, w  = img.shape[:2]
-    scale = size / max(h, w)
-
-    new_h = int(round(h * scale))
-    new_w = int(round(w * scale))
-
-    top    = (size - new_h) // 2
-    bottom = size - new_h - top
-    left   = (size - new_w) // 2
-    right  = size - new_w - left
-    return (new_h, new_w, top, bottom, left, right, scale)
-
 def pasteMask(img, mask, alpha=0.5, threshold=0.5, color=(255, 0, 0)):
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     mid = img.shape[0] // 2
