@@ -5,15 +5,15 @@ import torch
 import torch.optim as optim
 from torchmetrics.classification import MulticlassJaccardIndex
 from torchmetrics.classification import BinaryJaccardIndex
+from monai.networks.nets import UNet, VNet, UNETR, SwinUNETR, SegResNet
 
 
 class ModelNetwork:
     selected = None
-    encoders = ['resnet34', 'resnet50', 'resnet101', 'efficientnet-b3', 'timm-res2net50_26w_4s']
 
-    def __init__(self, name, encoder='resnet34', classes=1, pretrained=True, channels=1):
+    def __init__(self, name, img_size=128, classes=1, pretrained=True, channels=1):
         self.selected = name
-        self.encoder  = encoder
+        self.img_size = img_size
         self.classes  = classes
         self.multiclass = (self.classes > 1)
         self.pretrained = pretrained
@@ -34,24 +34,25 @@ class ModelNetwork:
     
     def getModel(self):
         classes = self.classes
-        encoder = self.encoder 
 
         if self.selected == 'standard':
             return UNet3D(img_channels=self.channels, num_filters=16, dropout=0.1, classes=classes)
-        
-        if self.selected == 'unet':
-            return smp.UnetPlusPlus(encoder_name=encoder, encoder_weights=self.weights, in_channels=self.channels, classes=classes, activation=None)
-        
-        if self.selected == 'deep_lab':
-            return smp.DeepLabV3Plus(encoder_name=encoder, encoder_weights=self.weights, in_channels=self.channels, classes=classes, activation=None)
 
+        if self.selected == 'monai_unet':
+            return UNet(spatial_dims=3, in_channels=self.channels, out_channels=self.classes, channels=(16, 32, 64, 128, 256), strides=(2, 2, 2, 2), num_res_units=2)
+
+        if self.selected == 'vnet':
+            return VNet(spatial_dims=3, in_channels=self.channels, out_channels=self.classes, dropout_prob_down=0.1, dropout_prob_up=(0.1, 0.1)  )
+        
+        if self.selected == 'segresnet':
+            return SegResNet(spatial_dims=3, in_channels=self.channels, out_channels=self.classes, init_filters=16, dropout_prob=0.1)
+        
         return None
     
     def info(self):
         return {
             'multiclass': self.multiclass,
             'model_network': self.selected,
-            'model_encoder': self.encoder,
             'model_weights': self.weights,
             'model_channels': self.channels,
             'pretrained': self.pretrained
