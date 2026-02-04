@@ -23,7 +23,7 @@ def setFolder(path):
         shutil.rmtree(path)
     os.makedirs(path)
 
-def pasteMask(img, mask, alpha=0.5, threshold=0.5, color=(255, 0, 0)):
+def pasteMask(img, mask, alpha=0.5, threshold=0.5, color=(0, 0, 255)):
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     mid = img.shape[0] // 2
     
