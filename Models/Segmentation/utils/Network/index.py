@@ -1,23 +1,21 @@
 import segmentation_models_pytorch as smp
 import torch.nn.functional as F
-from utils.Unet import UNet3D
 import torch
 import torch.optim as optim
 from torchmetrics.classification import MulticlassJaccardIndex
 from torchmetrics.classification import BinaryJaccardIndex
 from monai.networks.nets import UNet, VNet, UNETR, SwinUNETR, SegResNet
+from .types.UNet3D import UNet3D
 
 
 class ModelNetwork:
     selected = None
 
-    def __init__(self, name, img_size=128, classes=1, pretrained=True, channels=1):
+    def __init__(self, name, img_size=128, classes=1, channels=1):
         self.selected = name
         self.img_size = img_size
         self.classes  = classes
         self.multiclass = (self.classes > 1)
-        self.pretrained = pretrained
-        self.weights    = 'imagenet' if self.pretrained else None
         self.channels   = channels
 
         if self.multiclass: # considerar o fundo como +1 classe
@@ -53,7 +51,6 @@ class ModelNetwork:
         return {
             'multiclass': self.multiclass,
             'model_network': self.selected,
-            'model_weights': self.weights,
-            'model_channels': self.channels,
-            'pretrained': self.pretrained
+            'model_channels': self.channels
         }
+    

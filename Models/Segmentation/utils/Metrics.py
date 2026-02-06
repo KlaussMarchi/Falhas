@@ -8,6 +8,7 @@ class DiceBCELoss(nn.Module):
         super().__init__()
         self.bce = nn.BCELoss()
         self.smooth = smooth
+        
     def forward(self, p, y):
         p = p.squeeze(1)
         y = y.squeeze(1).float()
@@ -70,3 +71,4 @@ class DiceFocalLoss(nn.Module):
         dice  = self.dice_loss(preds, targets)
         focal = self.focal_loss(preds, targets)
         return (self.dice_weight * dice) + (self.focal_weight * focal)
+

@@ -1,10 +1,8 @@
 import torch
 import torch.nn as nn
 
+
 class DoubleConv(nn.Module):
-    """
-    Módulo de convolução dupla (Conv3d -> BN -> ReLU -> Conv3d -> BN -> ReLU)
-    """
     def __init__(self, in_channels, out_channels, kernel_size=3, batchnorm=True, activation='relu'):
         super(DoubleConv, self).__init__()
         padding = kernel_size // 2  # mantendo as dimensões espaciais iguais
@@ -104,9 +102,6 @@ class UNet3D(nn.Module):
         
         # Decoder
         u1 = self.upconv1(bn)
-        # Concatenação no eixo 1 (canais): [Batch, Canais, D, H, W]
-        # Nota: Se houver mismatch de dimensões devido a padding, usar F.interpolate ou crop aqui.
-        # Com dimensão de entrada potência de 2 (ex: 128), não deve haver erro.
         x = torch.cat([u1, c4], dim=1) 
         x = self.drop_d1(x)
         x = self.dec_conv1(x)
@@ -128,16 +123,3 @@ class UNet3D(nn.Module):
         
         out = self.out_conv(x)
         return out
-
-# --- Teste de verificação de shape ---
-if __name__ == "__main__":
-    # Exemplo de entrada: Batch=1, Canais=1, Profundidade=128, Altura=128, Largura=128
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = UNet3D(img_channels=1, classes=1).to(device)
-    
-    # Tensor dummy 5D: (B, C, D, H, W)
-    x = torch.randn(1, 1, 128, 128, 128).to(device)
-    y = model(x)
-    
-    print(f"Input shape: {x.shape}")
-    print(f"Output shape: {y.shape}")
