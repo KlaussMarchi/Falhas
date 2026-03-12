@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class DoubleConv(nn.Module):
@@ -84,6 +85,14 @@ class UNet3D(nn.Module):
         self.out_conv = nn.Conv3d(num_filters, self.classes, kernel_size=1)
 
     def forward(self, x):
+        d, h, w = x.shape[2:]
+        pad_d = (16 - d % 16) % 16
+        pad_h = (16 - h % 16) % 16
+        pad_w = (16 - w % 16) % 16
+        
+        if pad_d > 0 or pad_h > 0 or pad_w > 0:
+            x = F.pad(x, (0, pad_w, 0, pad_h, 0, pad_d))
+
         # Encoder
         c1 = self.enc_conv1(x)
         p1 = self.drop1(self.pool1(c1))
@@ -121,5 +130,9 @@ class UNet3D(nn.Module):
         x = self.drop_d4(x)
         x = self.dec_conv4(x)
         
-        out = self.out_conv(x)
-        return out
+        logits = self.out_conv(x)
+
+        if pad_d > 0 or pad_h > 0 or pad_w > 0:
+            logits = logits[:, :, :d, :h, :w]
+
+        return logits

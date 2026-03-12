@@ -1,6 +1,8 @@
 import glob, os, shutil, cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
+from matplotlib.colors import ListedColormap
 
 
 def getFiles(path, limit=None, shuffle=False):
@@ -50,21 +52,30 @@ def pasteMask(img, mask, alpha=0.5, threshold=0.5, color=(0, 0, 255)):
     plt.tight_layout()
     plt.show()
 
-def showTile(img):
+def showTile(img, mask=False):
     fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-    mid = img.shape[0] // 2
+    mid       = img.shape[0] // 2
+
+    slices = [
+        img[mid, :, :],  # Plano YZ
+        img[:, mid, :],  # Plano XZ
+        img[:, :, mid]   # Plano XY
+    ]
     
-    slice_x = img[mid, :, :]  # Plano YZ
-    slice_y = img[:, mid, :]  # Plano XZ  
-    slice_z = img[:, :, mid]  # Plano XY
+    cmap_config = 'gray'
 
-    axes[0].imshow(slice_x, cmap='gray')
-    axes[0].set_title('Slice X=64')
+    if mask:
+        cmap_config = ListedColormap(['black', 'red', 'green', 'blue'])
+        vmin, vmax  = 0, 3 
+    else:
+        vmin, vmax = (None, None)
 
-    axes[1].imshow(slice_y, cmap='gray')
-    axes[1].set_title('Slice Y=64')
-
-    axes[2].imshow(slice_z, cmap='gray')
-    axes[2].set_title('Slice Z=64')
+    titles = ['Slice X', 'Slice Y', 'Slice Z']
+    
+    for i, ax in enumerate(axes):
+        ax.imshow(slices[i], cmap=cmap_config, vmin=vmin, vmax=vmax)
+        ax.set_title(f'{titles[i]}={mid}')
+        ax.axis('off')
+    
     plt.tight_layout()
     plt.show()
