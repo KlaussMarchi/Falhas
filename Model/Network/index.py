@@ -8,6 +8,7 @@ from monai.networks.nets import UNet, VNet, UNETR, SwinUNETR, SegResNet
 from .types.UNet3D import UNet3D
 from .types.Unet3D_V2 import Unet3D_V2
 from .types.ResACEUnet import ResACEUNet2
+from .types.ResACEUnet2 import ResACE_Unet
 
 
 class ModelNetwork:
@@ -51,6 +52,9 @@ class ModelNetwork:
             return SegResNet(spatial_dims=3, in_channels=self.channels, out_channels=self.classes, init_filters=self.num_filters, dropout_prob=self.dropout)
         
         if self.network == 'resaceunet':
-            return ResACEUNet2(in_channels=self.channels, out_channels=self.classes, img_size=self.img_size[0] if isinstance(self.img_size, tuple) else self.img_size, feature_size=self.num_filters, hidden_size=256, num_heads=4, drop_rate=self.dropout, attn_drop_rate=self.dropout, depths=[3, 3, 3, 3], dims=[32, 64, 128, 256])
+            return ResACEUNet2(in_channels=self.channels, out_channels=self.classes, img_size=int(self.img_size[0]), feature_size=self.num_filters, hidden_size=256, num_heads=4, drop_rate=self.dropout, attn_drop_rate=self.dropout, depths=[3, 3, 3, 3], dims=[32, 64, 128, 256])
         
+        if self.network == 'resaceunet2':
+            return ResACE_Unet(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout)
+
         return None

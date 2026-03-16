@@ -4,7 +4,7 @@ import numpy as np
 
 class Plotter:
     def __init__(self, metrics, limits=(0, 1.10), title='Metric Analysis'):
-        keys = list(metrics.keys())
+        keys = [str(key) for key in metrics.keys()]
         values = list(metrics.values())
         n      = len(metrics)
         colors = plt.cm.tab10(np.arange(n)) if n <= 10 else plt.cm.viridis(np.linspace(0, 1, n))
