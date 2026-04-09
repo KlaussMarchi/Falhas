@@ -35,4 +35,5 @@ for i, task in enumerate(tasks):
         info = json.load(file)
     
     print('info: ', info)
+    execute("../Dataset/Format.ipynb")
     execute("../Model/Analysis.ipynb")
