@@ -137,6 +137,15 @@ class ResACE_Unet(nn.Module):
         self.out_conv = nn.Conv3d(filters[0], num_classes, kernel_size=1)
 
     def forward(self, x):
+        # 2. Guarda o shape original e calcula o padding necessário
+        d, h, w = x.shape[2:]
+        pad_d = (16 - d % 16) % 16
+        pad_h = (16 - h % 16) % 16
+        pad_w = (16 - w % 16) % 16
+        
+        if pad_d > 0 or pad_h > 0 or pad_w > 0:
+            x = F.pad(x, (0, pad_w, 0, pad_h, 0, pad_d))
+
         # Caminho de Codificação
         e1 = self.enc1(x)
         p1 = self.pool1(e1)
@@ -165,5 +174,8 @@ class ResACE_Unet(nn.Module):
         
         # Saída (Logits)
         out = self.out_conv(d1)
+
+        if pad_d > 0 or pad_h > 0 or pad_w > 0:
+            out = out[:, :, :d, :h, :w]
         
         return out

@@ -25,44 +25,19 @@ def setFolder(path):
         shutil.rmtree(path)
     os.makedirs(path)
 
-def pasteMask(img, mask, alpha=0.5, threshold=0.5, color=(0, 0, 255)):
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    mid = img.shape[0] // 2
-    
-    slices = [
-        (img[mid, :, :], mask[mid, :, :], 'Slice X (Sagittal)'),
-        (img[:, mid, :], mask[:, mid, :], 'Slice Y (Coronal)'),
-        (img[:, :, mid], mask[:, :, mid], 'Slice Z (Axial)')
-    ]
-    
-    for i, (img_slice, mask_slice, title) in enumerate(slices):
-        img_norm = cv2.normalize(img_slice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-        img_rgb = cv2.cvtColor(img_norm, cv2.COLOR_GRAY2RGB)
-        
-        overlay = img_rgb.copy()
-        
-        condition = mask_slice > threshold
-        overlay[condition] = color 
-        blended = cv2.addWeighted(overlay, alpha, img_rgb, 1 - alpha, 0)
-        
-        axes[i].imshow(blended)
-        axes[i].set_title(title)
-        axes[i].axis('off')
-
-    plt.tight_layout()
-    plt.show()
-
 def showTile(img, mask=False):
     fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-    mid       = img.shape[0] // 2
+    cmap_config = 'gray'
+    
+    mid_x = img.shape[0] // 2
+    mid_y = img.shape[1] // 2
+    mid_z = img.shape[2] // 2
 
     slices = [
-        img[mid, :, :],  # Plano YZ
-        img[:, mid, :],  # Plano XZ
-        img[:, :, mid]   # Plano XY
+        img[mid_x, :, :],  # Plano YZ (Corte ao longo do eixo X)
+        img[:, mid_y, :],  # Plano XZ (Corte ao longo do eixo Y)
+        img[:, :, mid_z]   # Plano XY (Corte ao longo do eixo Z)
     ]
-    
-    cmap_config = 'gray'
 
     if mask:
         cmap_config = ListedColormap(['black', 'red', 'green', 'blue'])
@@ -70,11 +45,12 @@ def showTile(img, mask=False):
     else:
         vmin, vmax = (None, None)
 
-    titles = ['Slice X', 'Slice Y', 'Slice Z']
+    # Atualizamos a lista de títulos para refletir os valores corretos de cada eixo
+    titles = [f'Slice X={mid_x}', f'Slice Y={mid_y}', f'Slice Z={mid_z}']
     
     for i, ax in enumerate(axes):
         ax.imshow(slices[i], cmap=cmap_config, vmin=vmin, vmax=vmax)
-        ax.set_title(f'{titles[i]}={mid}')
+        ax.set_title(titles[i])
     
     plt.tight_layout()
     plt.show()
