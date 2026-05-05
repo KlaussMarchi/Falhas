@@ -27,7 +27,6 @@ def setFolder(path):
 
 def showTile(img, mask=False):
     fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-    cmap_config = 'gray'
     
     mid_x = img.shape[0] // 2
     mid_y = img.shape[1] // 2
@@ -39,13 +38,14 @@ def showTile(img, mask=False):
         img[:, :, mid_z]   # Plano XY (Corte ao longo do eixo Z)
     ]
 
-    if mask:
-        cmap_config = ListedColormap(['black', 'red', 'green', 'blue'])
-        vmin, vmax  = 0, 3 
-    else:
-        vmin, vmax = (None, None)
+    slices[0] = np.array(slices[0])
+    arr_y = np.array(slices[1])
+    arr_z = np.array(slices[2])
+    slices[1] = np.rot90(arr_z, -1)
+    slices[2] = arr_y
 
-    # Atualizamos a lista de títulos para refletir os valores corretos de cada eixo
+    cmap_config = ListedColormap(['black', 'red', 'green', 'blue']) if mask else 'gray'
+    vmin, vmax  = (0, 3) if mask else (None, None)
     titles = [f'Slice X={mid_x}', f'Slice Y={mid_y}', f'Slice Z={mid_z}']
     
     for i, ax in enumerate(axes):
