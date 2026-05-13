@@ -25,7 +25,7 @@ def setFolder(path):
         shutil.rmtree(path)
     os.makedirs(path)
 
-def showTile(img, mask=False):
+def showTile(img, mask=False, show=True):
     fig, axes = plt.subplots(1, 3, figsize=(12, 4))
     
     mid_x = img.shape[0] // 2
@@ -53,4 +53,6 @@ def showTile(img, mask=False):
         ax.set_title(titles[i])
     
     plt.tight_layout()
-    plt.show()
+    
+    if show:
+        plt.show()
