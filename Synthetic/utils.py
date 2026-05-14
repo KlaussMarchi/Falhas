@@ -22,7 +22,7 @@ def setFolder(path):
         shutil.rmtree(path)
     os.makedirs(path)
 
-def showTile(img, mask=False):
+def showTile(img, mask=False, save=None):
     fig, axes = plt.subplots(1, 3, figsize=(12, 4))
     
     mid_x = img.shape[0] // 2
@@ -50,7 +50,12 @@ def showTile(img, mask=False):
         ax.set_title(titles[i])
     
     plt.tight_layout()
-    plt.show()
+    
+    if save:
+        plt.savefig(save, bbox_inches='tight', dpi=300)
+        return plt.close(fig)
+
+    plt.show() 
 
 
 def show3DCube(ax, volume, label):
@@ -67,7 +72,7 @@ def show3DCube(ax, volume, label):
 
     midX = nx // 2
     midY = ny // 2
-    surfKwargs = dict(shade=False, antialiased=True, linewidth=0, rcount=nx, ccount=nz)
+    surfKwargs = dict(shade=False, antialiased=False, linewidth=0, rcount=nx, ccount=nz)
 
     # Left wall: x=midX plane (inline section)
     sliceLeft = volume[midX, :, :]

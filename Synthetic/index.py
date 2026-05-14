@@ -55,11 +55,11 @@ class SyntheticGenerator:
         # ── Ruído Final (Noise) ──────────────────────────────────────
         self.noiseLevel = (0.00, 0.05)    # Quantidade de ruído gaussiano (chuvisco) misturado à imagem sísmica final.
 
-        # ── Internal working volume ──────────────────────────────────
-        extraMargin = int(np.ceil(max(shape) * (self.zoom - 1.0) / 2.0)) if self.zoom > 1.0 else 0
-        self.nx = shape[0] + 2 * (self.margin + extraMargin)
-        self.ny = shape[1] + 2 * (self.margin + extraMargin)
-        self.nz = shape[2] + 2 * (self.margin + extraMargin)
+    def prepare(self):  # ── Internal working volume ──────────────────────────────────
+        extraMargin = int(np.ceil(max(self.finalShape) * (self.zoom - 1.0) / 2.0)) if self.zoom > 1.0 else 0
+        self.nx = self.finalShape[0] + 2 * (self.margin + extraMargin)
+        self.ny = self.finalShape[1] + 2 * (self.margin + extraMargin)
+        self.nz = self.finalShape[2] + 2 * (self.margin + extraMargin)
         self.shape = (self.nx, self.ny, self.nz)
 
     def get(self):
@@ -76,6 +76,7 @@ class SyntheticGenerator:
         return image.astype(np.float32), mask.astype(np.uint8)
 
     def dataset(self, n=200, outputDir="output"):
+        self.prepare()
         imgDir = os.path.join(outputDir, "images")
         mskDir = os.path.join(outputDir, "masks")
         setFolder(imgDir)
@@ -263,3 +264,35 @@ class SyntheticGenerator:
         zoomFactors = (fx / cropped.shape[0], fy / cropped.shape[1], fz / cropped.shape[2])
         order = 0 if volume.dtype == np.uint8 else 3
         return ndimage.zoom(cropped, zoomFactors, order=order)
+
+    def getMetrics(self):
+        return {
+            "shape": self.shape,
+            "margin": self.margin,
+            "zoom": self.zoom,
+            "layerRange": self.layerRange,
+            "layerThickness": self.layerThickness,
+            "layerNoise": self.layerNoise,
+            "foldCount": self.foldCount,
+            "foldSigma": self.foldSigma,
+            "foldAmplitude": self.foldAmplitude,
+            "foldDamping": self.foldDamping,
+            "foldBaseShift": self.foldBaseShift,
+            "shearOffset": self.shearOffset,
+            "shearGradient": self.shearGradient,
+            "faultCount": self.faultCount,
+            "faultThrow": self.faultThrow,
+            "faultDipAngle": self.faultDipAngle,
+            "faultRoughness": self.faultRoughness,
+            "faultRoughSigma": self.faultRoughSigma,
+            "faultDecaySigma": self.faultDecaySigma,
+            "faultZoneWidth": self.faultZoneWidth,
+            "faultThreshold": self.faultThreshold,
+            "faultCurveProb": self.faultCurveProb,
+            "faultCurveMax": self.faultCurveMax,
+            "waveletFreq": self.waveletFreq,
+            "waveletDuration": self.waveletDuration,
+            "waveletDt": self.waveletDt,
+            "noiseLevel": self.noiseLevel
+        }
+
