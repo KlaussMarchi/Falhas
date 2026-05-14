@@ -51,3 +51,59 @@ def showTile(img, mask=False):
     
     plt.tight_layout()
     plt.show()
+
+
+def show3DCube(ax, volume, label):
+    from matplotlib.colors import Normalize as MplNormalize
+
+    nx, ny, nz = volume.shape
+    cmap = plt.cm.gray
+    vlo, vhi = np.percentile(volume, [2, 98])
+    norm = MplNormalize(vmin=vlo, vmax=vhi)
+
+    xs = np.arange(nx)
+    ys = np.arange(ny)
+    zs = np.arange(nz)
+
+    midX = nx // 2
+    midY = ny // 2
+    surfKwargs = dict(shade=False, antialiased=True, linewidth=0, rcount=nx, ccount=nz)
+
+    # Left wall: x=midX plane (inline section)
+    sliceLeft = volume[midX, :, :]
+    yL, zL = np.meshgrid(ys, zs, indexing='ij')
+    xL = np.full_like(yL, midX)
+    ax.plot_surface(xL, yL, nz - 1 - zL, facecolors=cmap(norm(sliceLeft)), **surfKwargs)
+
+    # Right wall: y=midY plane (crossline section)
+    sliceRight = volume[:, midY, :]
+    xR, zR = np.meshgrid(xs, zs, indexing='ij')
+    yR = np.full_like(xR, midY)
+    ax.plot_surface(xR, yR, nz - 1 - zR, facecolors=cmap(norm(sliceRight)), **surfKwargs)
+
+    # Floor: bottom depth slice
+    sliceFloor = volume[:, :, -1]
+    xF, yF = np.meshgrid(xs, ys, indexing='ij')
+    zF = np.zeros_like(xF)
+    ax.plot_surface(xF, yF, zF, facecolors=cmap(norm(sliceFloor)), **surfKwargs)
+
+    ax.set_xlim(0, nx)
+    ax.set_ylim(0, ny)
+    ax.set_zlim(0, nz)
+    ax.set_box_aspect([1, 1, 1])
+    ax.set_axis_off()
+    ax.set_title(label, fontsize=13, fontweight='bold')
+    ax.view_init(elev=20, azim=315)
+
+
+def showSteps(steps, save=None):
+    fig = plt.figure(figsize=(18, 12))
+    for i, (volume, label) in enumerate(steps):
+        ax = fig.add_subplot(2, 3, i + 1, projection='3d')
+        show3DCube(ax, volume, label)
+    plt.tight_layout()
+
+    if save:
+        plt.savefig(save, bbox_inches='tight', dpi=300)
+
+    plt.show()
