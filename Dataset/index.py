@@ -300,8 +300,8 @@ if __name__ == "__main__":
     generator = PDFReportGenerator(
         ds0_img_dir  = "dataset0/images",
         ds0_mask_dir = "dataset0/masks",
-        ds1_img_dir  = "dataset1/images",
-        ds1_mask_dir = "dataset1/masks",
+        ds1_img_dir  = "dataset2/images",
+        ds1_mask_dir = "dataset2/masks",
         output_pdf   = "output.pdf",
     )
     generator.generate(num_samples=15)
