@@ -1,11 +1,11 @@
 import pandas as pd
 import numpy as np
-import glob, os, shutil, cv2, json, sys
-from tqdm import tqdm
+import glob, os, shutil
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
-import scipy.ndimage as ndimage
-from tqdm import tqdm
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import Normalize as MplNormalize
 
 
 def getFiles(path, limit=None, shuffle=False):
@@ -58,47 +58,63 @@ def showTile(img, mask=False, save=None):
     plt.show() 
 
 
-def show3DCube(ax, volume, label):
-    from matplotlib.colors import Normalize as MplNormalize
-
+def show3DCube(ax, volume, label, x_ratio=0.1, y_ratio=0.9, z_ratio=0.9, stride=1):
+    """
+    Plota fatias ortogonais se cruzando.
+    x_ratio: controla a posição esquerda/direita do plano YZ.
+    y_ratio: controla a posição frente/trás do plano XZ (0.8 empurra para trás).
+    z_ratio: controla a posição cima/baixo do plano XY (chão).
+    stride: Aumente para 2 ou 3 para renderizar muito mais rápido (sacrificando um pouco de resolução).
+    """
     nx, ny, nz = volume.shape
+    pos_x, pos_y, pos_z = int(nx * x_ratio), int(ny * y_ratio), int(nz * z_ratio)
+
     cmap = plt.cm.gray
-    vlo, vhi = np.percentile(volume, [2, 98])
-    norm = MplNormalize(vmin=vlo, vmax=vhi)
+    norm = MplNormalize(vmin=volume.min(), vmax=volume.max())
 
-    xs = np.arange(nx)
-    ys = np.arange(ny)
-    zs = np.arange(nz)
+    def plot_plane(axis_to_fix, fixed_pos):
+        if axis_to_fix == 'y':    # Plano XZ
+            ranges_dim1 = [(0, pos_x + 1), (pos_x, nx)]
+            ranges_dim2 = [(0, pos_z + 1), (pos_z, nz)]
+        elif axis_to_fix == 'x':  # Plano YZ
+            ranges_dim1 = [(0, pos_y + 1), (pos_y, ny)]
+            ranges_dim2 = [(0, pos_z + 1), (pos_z, nz)]
+        else:                     # Plano XY (z)
+            ranges_dim1 = [(0, pos_x + 1), (pos_x, nx)]
+            ranges_dim2 = [(0, pos_y + 1), (pos_y, ny)]
 
-    midX = nx // 2
-    midY = ny // 2
-    surfKwargs = dict(shade=False, antialiased=False, linewidth=0, rcount=nx, ccount=nz)
+        for start1, end1 in ranges_dim1:
+            for start2, end2 in ranges_dim2:
+                arr1, arr2 = np.arange(start1, end1), np.arange(start2, end2)
 
-    # Left wall: x=midX plane (inline section)
-    sliceLeft = volume[midX, :, :]
-    yL, zL = np.meshgrid(ys, zs, indexing='ij')
-    xL = np.full_like(yL, midX)
-    ax.plot_surface(xL, yL, nz - 1 - zL, facecolors=cmap(norm(sliceLeft)), **surfKwargs)
+                if axis_to_fix == 'y':
+                    X, Z = np.meshgrid(arr1, arr2, indexing='ij')
+                    Y = np.full_like(X, fixed_pos)
+                    Z_plot = nz - Z
+                    data = volume[start1:end1, fixed_pos, start2:end2]
+                elif axis_to_fix == 'x':
+                    Y, Z = np.meshgrid(arr1, arr2, indexing='ij')
+                    X = np.full_like(Y, fixed_pos)
+                    Z_plot = nz - Z
+                    data = volume[fixed_pos, start1:end1, start2:end2]
+                else:
+                    X, Y = np.meshgrid(arr1, arr2, indexing='ij')
+                    Z_plot = np.full_like(X, nz - fixed_pos)
+                    data = volume[start1:end1, start2:end2, fixed_pos]
 
-    # Right wall: y=midY plane (crossline section)
-    sliceRight = volume[:, midY, :]
-    xR, zR = np.meshgrid(xs, zs, indexing='ij')
-    yR = np.full_like(xR, midY)
-    ax.plot_surface(xR, yR, nz - 1 - zR, facecolors=cmap(norm(sliceRight)), **surfKwargs)
+                ax.plot_surface(X, Y, Z_plot, facecolors=cmap(norm(data)), shade=False, antialiased=False, linewidth=0, rstride=stride, cstride=stride)
 
-    # Floor: bottom depth slice
-    sliceFloor = volume[:, :, -1]
-    xF, yF = np.meshgrid(xs, ys, indexing='ij')
-    zF = np.zeros_like(xF)
-    ax.plot_surface(xF, yF, zF, facecolors=cmap(norm(sliceFloor)), **surfKwargs)
+    plot_plane('y', pos_y) # Parede XZ
+    plot_plane('x', pos_x) # Parede YZ
+    plot_plane('z', pos_z) # Chão XY
 
     ax.set_xlim(0, nx)
     ax.set_ylim(0, ny)
     ax.set_zlim(0, nz)
     ax.set_box_aspect([1, 1, 1])
     ax.set_axis_off()
-    ax.set_title(label, fontsize=13, fontweight='bold')
-    ax.view_init(elev=20, azim=315)
+    ax.set_title(label, fontsize=14, fontweight='bold', loc='left')
+    ax.view_init(elev=20, azim=-45)
 
 
 def showSteps(steps, save=None):
@@ -106,6 +122,7 @@ def showSteps(steps, save=None):
     for i, (volume, label) in enumerate(steps):
         ax = fig.add_subplot(2, 3, i + 1, projection='3d')
         show3DCube(ax, volume, label)
+        
     plt.tight_layout()
 
     if save:

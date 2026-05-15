@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import scipy.ndimage as ndimage
 from tqdm import tqdm
+from utils import setFolder, formatAxis
 
 
 class SyntheticGenerator:
@@ -16,12 +17,12 @@ class SyntheticGenerator:
         
         # ── Output geometry ──────────────────────────────────────────
         self.finalShape = shape           # (nx, ny, nz) final output volume size
-        self.zoom = max(self.zoom, 0.1)  
+        self.zoom = max(self.zoom, 0.1)   
 
         # ── Refletividade (Estratigrafia) ────────────────────────────
-        self.layerRange = (80, 160)       
+        self.layerRange = (80, 160)       # estava (80, 160)     
         self.layerThickness = (1, 3)      # Espessura base de cada camada em voxels (será multiplicada pela escala/zoomRange).
-        self.layerNoise = 0.01            # Heterogeneidade interna da camada (rugosidade da rocha). Valores altos = textura mais "suja".
+        self.layerNoise = 0.00            # Heterogeneidade interna da camada (rugosidade da rocha). Valores altos = textura mais "suja".
 
         # ── Dobramentos (Folding) ────────────────────────────────────
         self.foldCount = (15, 30)         # Quantidade mínima e máxima de dobras (Gaussianas). Mais dobras = geologia mais caótica.
@@ -53,7 +54,7 @@ class SyntheticGenerator:
         self.waveletDt = 0.002            # Intervalo de amostragem no tempo (taxa digital). 0.002 é o padrão (2ms).
 
         # ── Ruído Final (Noise) ──────────────────────────────────────
-        self.noiseLevel = (0.00, 0.05)    # Quantidade de ruído gaussiano (chuvisco) misturado à imagem sísmica final.
+        self.noiseLevel = (0.00, 0.50)    # Quantidade de ruído gaussiano (chuvisco) misturado à imagem sísmica final.
 
     def prepare(self):  # ── Internal working volume ──────────────────────────────────
         extraMargin = int(np.ceil(max(self.finalShape) * (self.zoom - 1.0) / 2.0)) if self.zoom > 1.0 else 0
@@ -105,7 +106,6 @@ class SyntheticGenerator:
         noise3d = np.random.normal(0, 1, self.shape)
         smoothedNoise = ndimage.gaussian_filter(noise3d, sigma=(1.0, 1.0, 0.0))
         smoothedNoise *= (self.layerNoise * 10 / (np.std(smoothedNoise) + 1e-8))
-        
         return r3d + smoothedNoise
 
     def applyFolding(self, reflectivity):
@@ -240,7 +240,7 @@ class SyntheticGenerator:
         noise = ndimage.gaussian_filter(noise, sigma=(1.0, 1.0, 0.5))
         noise *= (scale / (np.std(noise) + 1e-8))
         
-        image = image + noise
+        image = (image + noise)
         image = ndimage.gaussian_filter(image, sigma=(0.5, 0.5, 0))
         return image
 
