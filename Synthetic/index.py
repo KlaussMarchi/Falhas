@@ -1,66 +1,56 @@
-import pandas as pd
 import numpy as np
-import glob, os, shutil, cv2, json, sys
 from tqdm import tqdm
-import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
 import scipy.ndimage as ndimage
-from tqdm import tqdm
 from utils import setFolder, formatAxis
+import os, json
 
 
 class SyntheticGenerator:
     def __init__(self, shape=(128, 128, 128)):
         # ── Image Format ─────────────────────────────────────────────
-        self.margin = 64                  # Buffer aumentado para absorver dobras extremas com segurança
-        self.zoom   = 1.8                 # >1.0 zoom out (more structures), <1.0 zoom in (finer detail)
-        
-        # ── Output geometry ──────────────────────────────────────────
+        self.margin = 64                  # Buffer para absorver dobras extremas nas bordas com segurança
         self.finalShape = shape           # (nx, ny, nz) final output volume size
-        self.zoom = max(self.zoom, 0.1)   
 
         # ── Refletividade (Estratigrafia) ────────────────────────────
-        self.layerRange = (80, 160)       # estava (80, 160)     
-        self.layerThickness = (1, 3)      # Espessura base de cada camada em voxels (será multiplicada pela escala/zoomRange).
-        self.layerNoise = 0.00            # Heterogeneidade interna da camada (rugosidade da rocha). Valores altos = textura mais "suja".
+        self.layerRange = (100, 230)      # Qtd de camadas. ↑ Imagem cheia de linhas finas. ↓ Blocos grossos e lisos.
+        self.layerThickness = (1, 2)      # Espessura. ↑ Camadas mais grossas. ↓ Camadas bem fininhas.
+        self.layerNoise = 0.00            # Irregularidade. ↑ Camadas "sujas" e tremidas. ↓ Linhas retas e perfeitas.
 
         # ── Dobramentos (Folding) ────────────────────────────────────
-        self.foldCount = (15, 30)         # Quantidade mínima e máxima de dobras (Gaussianas). Mais dobras = geologia mais caótica.
-        self.foldSigma = (15, 80)         # Largura base de cada dobra (será multiplicada pela escala).
-        self.foldAmplitude = (-30, 30)    # Amplitude base do deslocamento vertical da dobra (será multiplicada pela escala).
-        self.foldDamping   = 1.5          # Fator de amortecimento. Valores altos fazem com que as camadas mais profundas dobrem menos.
-        self.foldBaseShift = (-3, 3)      # Deslocamento vertical global. Move o bloco de rocha inteiro para cima ou para baixo.
+        self.foldCount = (15, 30)         # Qtd de dobras. ↑ Imagem muito ondulada. ↓ Terreno plano.
+        self.foldSigma = (8, 44)          # Largura da dobra. ↑ Dobras largas e suaves. ↓ Dobras curtas e apertadas.
+        self.foldAmplitude = (-17, 17)    # Altura da dobra. ↑ Picos e vales extremos. ↓ Dobras rasas.
+        self.foldDamping   = 1.5          # Perda de força. ↑ A dobra some rápido no fundo. ↓ A dobra desce até a base.
+        self.foldBaseShift = (-1.6, 1.6)  # Posição Z. ↑/↓ Sobe ou desce o desenho inteiro na imagem.
 
         # ── Cisalhamento / Inclinação (Shearing) ─────────────────────
-        self.shearOffset   = (-5, 5)      # Intervalo de deslocamento da inclinação (tilt) global.
-        self.shearGradient = (-0.1, 0.1)  # Gradiente de mergulho (dip) por eixo. Define o quão "íngreme" fica a inclinação geral.
+        self.shearOffset   = (-2.8, 2.8)  # Deslocamento lateral. ↑/↓ Empurra todo o bloco para o lado.
+        self.shearGradient = (-0.1, 0.1)  # Inclinação (Mergulho). ↑ Camadas ficam na diagonal. ↓ Ficam na horizontal.
 
         # ── Falhas (Faulting) ────────────────────────────────────────
-        self.faultCount = (4, 7)          # Número mínimo e máximo de falhas por cubo.
-        self.faultThrow = (0, 40)         # Rejeito (deslocamento vertical) da falha em voxels (será multiplicado pela escala).
-        self.faultDipAngle = (20, 75)     # Ângulo de mergulho em Graus. (0 = horizontal, 90 = vertical)
+        self.faultCount = (4, 7)          # Qtd de falhas. ↑ Imagem toda fraturada. ↓ Imagem mais inteira.
+        self.faultThrow = (0, 22)         # Tamanho do degrau. ↑ Desencontro gigante nas linhas. ↓ Quebra quase invisível.
+        self.faultDipAngle = (20, 75)     # Ângulo. ↑ Falha quase em pé (vertical). ↓ Falha deitada.
         
-        self.faultRoughness  = 6.0        # Rugosidade do plano de falha. Valores altos = falhas irregulares/onduladas. 0 = corte de faca.
-        self.faultRoughSigma = 8          # Nível de suavização dessa rugosidade da falha. Valores altos deixam a ondulação mais suave.
-        self.faultDecaySigma = (60, 150)  # O quão longe o deslocamento (rejeito) da falha afeta as rochas vizinhas (decaimento).
-        self.faultZoneWidth  = 1.8        # Espessura da "zona" de falha na hora de gerar a máscara binária (labels para a CNN).
-        self.faultThreshold  = 1.5        # Rejeito mínimo exigido para o código classificar aquele pixel como "falha" na máscara.
-        self.faultCurveProb  = 0.30       # Probabilidade (0 a 1) de uma falha nascer curvada (ex: 0.30 = 30% de chance).
-        self.faultCurveMax   = 12.0       # O quão "torta" (desvio máximo em voxels) a falha curvada pode ficar.
+        self.faultRoughness  = 3.3        # Textura do corte. ↑ Corte tremido/áspero. ↓ Corte liso como navalha.
+        self.faultRoughSigma = 4.5        # Tamanho da tremedeira. ↑ Ondas grandes na falha. ↓ Ondinhas curtas.
+        self.faultDecaySigma = (33, 83)   # Arrasto. ↑ A linha entorta muito antes de quebrar. ↓ Quebra seca.
+        self.faultZoneWidth  = 1.2        # Espessura do rótulo. ↑ A máscara da falha fica grossa. ↓ Fica fina.
+        self.faultThreshold  = 0.8        # Filtro de rótulo. ↑ Marca só falha grande. ↓ Marca qualquer rachadurazinha.
+        self.faultCurveProb  = 0.30       # Chance de curvar. ↑ Falha faz formato de colher (lístrica). ↓ Falha reta.
+        self.faultCurveMax   = 6.7        # Força da curva. ↑ Curva muito fechada. ↓ Curva leve.
 
         # ── Assinatura Sísmica (Wavelet) ─────────────────────────────
-        self.waveletFreq = (45, 65)       # Frequência da Wavelet de Ricker em Hz. Mais alta = pulso mais fino e resolução sísmica maior.
-        self.waveletDuration = 0.08       # Meia-duração do pulso da wavelet (em segundos). Valores maiores = pulso mais largo.
-        self.waveletDt = 0.002            # Intervalo de amostragem no tempo (taxa digital). 0.002 é o padrão (2ms).
+        self.waveletFreq = (81, 117)      # Resolução. ↑ Imagem super nítida. ↓ Imagem borrada e grossa.
+        self.waveletDuration = 0.08       # "Eco" do sinal. ↑ O traço borra verticalmente. ↓ Sinal limpo e curto.
+        self.waveletDt = 0.002            # Amostragem. ↑ Imagem pode ficar pixelada/serrilhada. ↓ Imagem contínua.
 
         # ── Ruído Final (Noise) ──────────────────────────────────────
-        self.noiseLevel = (0.00, 0.50)    # Quantidade de ruído gaussiano (chuvisco) misturado à imagem sísmica final.
+        self.noiseLevel = (0.00, 0.10)    # Chuvisco. ↑ Imagem cheia de ruído (ruim). ↓ Imagem limpa (perfeita).
 
-    def prepare(self):  # ── Internal working volume ──────────────────────────────────
-        extraMargin = int(np.ceil(max(self.finalShape) * (self.zoom - 1.0) / 2.0)) if self.zoom > 1.0 else 0
-        self.nx = self.finalShape[0] + 2 * (self.margin + extraMargin)
-        self.ny = self.finalShape[1] + 2 * (self.margin + extraMargin)
-        self.nz = self.finalShape[2] + 2 * (self.margin + extraMargin)
+        self.nx = self.finalShape[0] + 2 * self.margin
+        self.ny = self.finalShape[1] + 2 * self.margin
+        self.nz = self.finalShape[2] + 2 * self.margin
         self.shape = (self.nx, self.ny, self.nz)
 
     def get(self):
@@ -77,7 +67,6 @@ class SyntheticGenerator:
         return image.astype(np.float32), mask.astype(np.uint8)
 
     def dataset(self, n=200, outputDir="output"):
-        self.prepare()
         imgDir = os.path.join(outputDir, "images")
         mskDir = os.path.join(outputDir, "masks")
         setFolder(imgDir)
@@ -100,14 +89,8 @@ class SyntheticGenerator:
             thickness = np.random.randint(*self.layerThickness)
             r1d[pos : pos + thickness] = np.random.uniform(-1, 1)
 
-        r1d += np.random.normal(0, self.layerNoise, self.nz)
-        r3d = np.tile(r1d, (self.nx, self.ny, 1))
+        return np.tile(r1d, (self.nx, self.ny, 1))
         
-        noise3d = np.random.normal(0, 1, self.shape)
-        smoothedNoise = ndimage.gaussian_filter(noise3d, sigma=(1.0, 1.0, 0.0))
-        smoothedNoise *= (self.layerNoise * 10 / (np.std(smoothedNoise) + 1e-8))
-        return r3d + smoothedNoise
-
     def applyFolding(self, reflectivity):
         """Deform layers with rotated anisotropic Gaussian folds."""
         x = np.arange(self.nx)
@@ -210,7 +193,6 @@ class SyntheticGenerator:
 
             model = ndimage.map_coordinates(model, [ixShifted, iyShifted, izShifted], order=1, mode="nearest")
             masks = ndimage.map_coordinates(masks, [ixShifted, iyShifted, izShifted], order=0, mode="constant", cval=0)
-
             faultZone = (np.abs(distPlane) <= self.faultZoneWidth) & (np.abs(throwMap) > self.faultThreshold)
             masks[faultZone] = 1
 
@@ -245,34 +227,19 @@ class SyntheticGenerator:
         return image
 
     def crop(self, volume):
-        """Extract a zoomed region from the center and resize to finalShape."""
-        fx, fy, fz = self.finalShape
-        cx, cy, cz = volume.shape[0] // 2, volume.shape[1] // 2, volume.shape[2] // 2
-
-        ex = int(round(fx * self.zoom / 2.0))
-        ey = int(round(fy * self.zoom / 2.0))
-        ez = int(round(fz * self.zoom / 2.0))
-
-        x0, x1  = max(cx - ex, 0), min(cx + ex, volume.shape[0])
-        y0, y1  = max(cy - ey, 0), min(cy + ey, volume.shape[1])
-        z0, z1  = max(cz - ez, 0), min(cz + ez, volume.shape[2])
-        cropped = volume[x0:x1, y0:y1, z0:z1]
-
-        if cropped.shape == (fx, fy, fz):
-            return cropped
-
-        zoomFactors = (fx / cropped.shape[0], fy / cropped.shape[1], fz / cropped.shape[2])
-        order = 0 if volume.dtype == np.uint8 else 3
-        return ndimage.zoom(cropped, zoomFactors, order=order)
+        """Removes the safety margin to extract the final shape volume."""
+        x0, x1 = self.margin, self.nx - self.margin
+        y0, y1 = self.margin, self.ny - self.margin
+        z0, z1 = self.margin, self.nz - self.margin
+        
+        return volume[x0:x1, y0:y1, z0:z1]
 
     def getMetrics(self):
         return {
             "shape": self.shape,
             "margin": self.margin,
-            "zoom": self.zoom,
             "layerRange": self.layerRange,
             "layerThickness": self.layerThickness,
-            "layerNoise": self.layerNoise,
             "foldCount": self.foldCount,
             "foldSigma": self.foldSigma,
             "foldAmplitude": self.foldAmplitude,
@@ -295,4 +262,6 @@ class SyntheticGenerator:
             "waveletDt": self.waveletDt,
             "noiseLevel": self.noiseLevel
         }
-
+    
+    def print(self):
+        print(json.dumps(self.getMetrics(), indent=4))

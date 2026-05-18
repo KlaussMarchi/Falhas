@@ -22,40 +22,51 @@ def setFolder(path):
         shutil.rmtree(path)
     os.makedirs(path)
 
-def showTile(img, mask=False, save=None):
+def showTile(img=None, mask=None, save=None):
+    if img is None and mask is None:
+        return print("Erro: Forneça pelo menos 'img' ou 'mask'.")
+
+    ref_vol = img if img is not None else mask
+    mid_x = ref_vol.shape[0] // 2
+    mid_y = ref_vol.shape[1] // 2
+    mid_z = ref_vol.shape[2] // 2
+
+    def get_slices(vol):
+        if vol is None:
+            return None
+        
+        s_x = np.array(vol[mid_x, :, :]) # Plano YZ
+        s_y = np.array(vol[:, mid_y, :]) # Plano XZ
+        s_z = np.array(vol[:, :, mid_z]) # Plano XY
+        return [s_x, np.rot90(s_z, -1), s_y]
+
+    img_slices  = get_slices(img)
+    mask_slices = get_slices(mask)
+    cmap_mask_only    = ListedColormap(['black', 'red', 'green', 'blue'])
+    cmap_mask_overlay = ListedColormap([(0, 0, 0, 0), 'red', 'green', 'blue'])
+
     fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-    
-    mid_x = img.shape[0] // 2
-    mid_y = img.shape[1] // 2
-    mid_z = img.shape[2] // 2
+    titles    = [f'Slice X={mid_x}', f'Slice Y={mid_y}', f'Slice Z={mid_z}']
 
-    slices = [
-        img[mid_x, :, :],  # Plano YZ (Corte ao longo do eixo X)
-        img[:, mid_y, :],  # Plano XZ (Corte ao longo do eixo Y)
-        img[:, :, mid_z]   # Plano XY (Corte ao longo do eixo Z)
-    ]
-
-    slices[0] = np.array(slices[0])
-    arr_y = np.array(slices[1])
-    arr_z = np.array(slices[2])
-    slices[1] = np.rot90(arr_z, -1)
-    slices[2] = arr_y
-
-    cmap_config = ListedColormap(['black', 'red', 'green', 'blue']) if mask else 'gray'
-    vmin, vmax  = (0, 3) if mask else (None, None)
-    titles = [f'Slice X={mid_x}', f'Slice Y={mid_y}', f'Slice Z={mid_z}']
-    
     for i, ax in enumerate(axes):
-        ax.imshow(slices[i], cmap=cmap_config, vmin=vmin, vmax=vmax)
+        if img is not None:
+            ax.imshow(img_slices[i], cmap='gray')
+            
+        if mask is not None:
+            if img is not None:
+                ax.imshow(mask_slices[i], cmap=cmap_mask_overlay, vmin=0, vmax=3, alpha=0.6)
+            else:
+                ax.imshow(mask_slices[i], cmap=cmap_mask_only, vmin=0, vmax=3)
+        
         ax.set_title(titles[i])
-    
+
     plt.tight_layout()
-    
+
     if save:
         plt.savefig(save, bbox_inches='tight', dpi=300)
         return plt.close(fig)
 
-    plt.show() 
+    plt.show()
 
 
 def show3DCube(ax, volume, label, x_ratio=0.1, y_ratio=0.9, z_ratio=0.9, stride=1):
