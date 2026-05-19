@@ -14,7 +14,6 @@ class SyntheticGenerator:
         # ── Refletividade (Estratigrafia) ────────────────────────────
         self.layerRange = (100, 230)      # Qtd de camadas. ↑ Imagem cheia de linhas finas. ↓ Blocos grossos e lisos.
         self.layerThickness = (1, 2)      # Espessura. ↑ Camadas mais grossas. ↓ Camadas bem fininhas.
-        self.layerNoise = 0.00            # Irregularidade. ↑ Camadas "sujas" e tremidas. ↓ Linhas retas e perfeitas.
 
         # ── Dobramentos (Folding) ────────────────────────────────────
         self.foldCount = (15, 30)         # Qtd de dobras. ↑ Imagem muito ondulada. ↓ Terreno plano.
@@ -35,8 +34,10 @@ class SyntheticGenerator:
         self.faultRoughness  = 3.3        # Textura do corte. ↑ Corte tremido/áspero. ↓ Corte liso como navalha.
         self.faultRoughSigma = 4.5        # Tamanho da tremedeira. ↑ Ondas grandes na falha. ↓ Ondinhas curtas.
         self.faultDecaySigma = (33, 83)   # Arrasto. ↑ A linha entorta muito antes de quebrar. ↓ Quebra seca.
+
         self.faultZoneWidth  = 1.2        # Espessura do rótulo. ↑ A máscara da falha fica grossa. ↓ Fica fina.
-        self.faultThreshold  = 0.8        # Filtro de rótulo. ↑ Marca só falha grande. ↓ Marca qualquer rachadurazinha.
+        self.faultThreshold  = 1.3        # Filtro de rótulo. ↑ Marca só falha grande. ↓ Marca qualquer rachadurazinha.
+
         self.faultCurveProb  = 0.30       # Chance de curvar. ↑ Falha faz formato de colher (lístrica). ↓ Falha reta.
         self.faultCurveMax   = 6.7        # Força da curva. ↑ Curva muito fechada. ↓ Curva leve.
 
