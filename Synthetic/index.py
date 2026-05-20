@@ -1,7 +1,6 @@
 import numpy as np
 from tqdm import tqdm
 import scipy.ndimage as ndimage
-from utils import setFolder, formatAxis
 import os, json
 
 
@@ -36,7 +35,7 @@ class SyntheticGenerator:
         self.faultDecaySigma = (33, 83)   # Arrasto. ↑ A linha entorta muito antes de quebrar. ↓ Quebra seca.
 
         self.faultZoneWidth  = 1.2        # Espessura do rótulo. ↑ A máscara da falha fica grossa. ↓ Fica fina.
-        self.faultThreshold  = 1.3        # Filtro de rótulo. ↑ Marca só falha grande. ↓ Marca qualquer rachadurazinha.
+        self.faultThreshold  = 0.8        # Filtro de rótulo. ↑ Marca só falha grande. ↓ Marca qualquer rachadurazinha.
 
         self.faultCurveProb  = 0.30       # Chance de curvar. ↑ Falha faz formato de colher (lístrica). ↓ Falha reta.
         self.faultCurveMax   = 6.7        # Força da curva. ↑ Curva muito fechada. ↓ Curva leve.
@@ -67,18 +66,42 @@ class SyntheticGenerator:
         image = (image - np.mean(image)) / (np.std(image) + 1e-8)
         return image.astype(np.float32), mask.astype(np.uint8)
 
-    def dataset(self, n=200, outputDir="output"):
+    def set(self, options):
+        for k, v in options.items():
+            setattr(self, k, v)
+
+    def _generate_single(self, args):
+        import numpy as np
+        import os
+        
+        i, imgDir, mskDir, seed = args
+        np.random.seed(seed)
+        image, mask = self.get()
+        image, mask = np.transpose(image, (0, 2, 1)), np.transpose(mask, (0, 2, 1))
+        
+        np.save(os.path.join(imgDir, f"img_{i:04d}.npy"), image)
+        np.save(os.path.join(mskDir, f"img_{i:04d}.npy"), mask)
+
+    def dataset(self, n=200, outputDir="output", n_jobs=None):
+        from utils import setFolder
+        import concurrent.futures
+        import multiprocessing
+        import os
+        from tqdm import tqdm
+        
         imgDir = os.path.join(outputDir, "images")
         mskDir = os.path.join(outputDir, "masks")
         setFolder(imgDir)
         setFolder(mskDir)
 
-        for i in tqdm(range(n), desc="Generating dataset"):
-            image, mask = self.get()
-            image, mask = formatAxis(image), formatAxis(mask)
+        if n_jobs is None:
+            n_jobs = multiprocessing.cpu_count()
             
-            np.save(os.path.join(imgDir, f"img_{i:04d}.npy"), image)
-            np.save(os.path.join(mskDir, f"img_{i:04d}.npy"), mask)
+        base_seed = np.random.randint(0, 1000000)
+        tasks = [(i, imgDir, mskDir, base_seed + i) for i in range(n)]
+        
+        with concurrent.futures.ProcessPoolExecutor(max_workers=n_jobs) as executor:
+            list(tqdm(executor.map(self._generate_single, tasks), total=n, desc="Generating dataset"))
 
     def genReflectivity(self):
         """Create 1D layered reflectivity tiled across the volume."""
@@ -179,18 +202,16 @@ class SyntheticGenerator:
             maxDisp  = np.random.uniform(*self.faultThrow)
             throwMap = self.computeThrowMap(distStrike, distDip, maxDisp)
 
-            shift_x = np.zeros_like(ix, dtype=float)
-            shift_y = np.zeros_like(iy, dtype=float)
-            shift_z = np.zeros_like(iz, dtype=float)
-
             hw = distPlane > 0
-            shift_x[hw] = throwMap[hw] * dip[0]
-            shift_y[hw] = throwMap[hw] * dip[1]
-            shift_z[hw] = throwMap[hw] * dip[2]
+            throw_hw = throwMap[hw]
 
-            ixShifted = ix.astype(float) + shift_x
-            iyShifted = iy.astype(float) + shift_y
-            izShifted = iz.astype(float) + shift_z
+            ixShifted = ix.astype(np.float32)
+            iyShifted = iy.astype(np.float32)
+            izShifted = iz.astype(np.float32)
+            
+            ixShifted[hw] += throw_hw * dip[0]
+            iyShifted[hw] += throw_hw * dip[1]
+            izShifted[hw] += throw_hw * dip[2]
 
             model = ndimage.map_coordinates(model, [ixShifted, iyShifted, izShifted], order=1, mode="nearest")
             masks = ndimage.map_coordinates(masks, [ixShifted, iyShifted, izShifted], order=0, mode="constant", cval=0)
@@ -232,7 +253,6 @@ class SyntheticGenerator:
         x0, x1 = self.margin, self.nx - self.margin
         y0, y1 = self.margin, self.ny - self.margin
         z0, z1 = self.margin, self.nz - self.margin
-        
         return volume[x0:x1, y0:y1, z0:z1]
 
     def getMetrics(self):
