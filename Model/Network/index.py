@@ -52,9 +52,6 @@ class ModelNetwork:
             return SegResNet(spatial_dims=3, in_channels=self.channels, out_channels=self.classes, init_filters=self.num_filters, dropout_prob=self.dropout)
         
         if self.network == 'resaceunet':
-            return ResACEUNet2(in_channels=self.channels, out_channels=self.classes, img_size=int(self.img_size[0]), feature_size=self.num_filters, hidden_size=256, num_heads=4, drop_rate=self.dropout, attn_drop_rate=self.dropout, depths=[3, 3, 3, 3], dims=[32, 64, 128, 256])
-        
-        if self.network == 'resaceunet2':
             return ResACE_Unet(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout)
 
         return None
