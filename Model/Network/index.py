@@ -7,8 +7,8 @@ from monai.networks.nets import UNet, VNet, UNETR, SwinUNETR, SegResNet
 
 from .types.UNet3D import UNet3D
 from .types.Unet3D_V2 import Unet3D_V2
-from .types.ResACEUnet import ResACEUNet2
-from .types.ResACEUnet2 import ResACE_Unet
+from .types.ResACEUnetWu import ResACEUnetWu
+from .types.ResACEUnet2  import ResACE_Unet
 
 
 class ModelNetwork:
@@ -53,5 +53,9 @@ class ModelNetwork:
         
         if self.network == 'resaceunet':
             return ResACE_Unet(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout)
+        
+        if self.network == 'resaceunet_wu':
+            img_size_int = self.img_size[0] if isinstance(self.img_size, (list, tuple)) else self.img_size
+            return ResACEUnetWu(in_channels=self.channels, out_channels=self.classes, img_size=img_size_int, feature_size=16, hidden_size=256, num_heads=4, drop_rate=0.1, attn_drop_rate=0.1, depths=[3, 3, 3, 3], dims=[32, 64, 128, 256])
 
         return None

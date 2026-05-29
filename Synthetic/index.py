@@ -3,6 +3,11 @@ from tqdm import tqdm
 import scipy.ndimage as ndimage
 import os, json
 
+import numpy as np
+from tqdm import tqdm
+import scipy.ndimage as ndimage
+import os, json
+
 
 class SyntheticGenerator:
     def __init__(self, shape=(128, 128, 128)):
@@ -83,7 +88,7 @@ class SyntheticGenerator:
         np.save(os.path.join(mskDir, f"img_{i:04d}.npy"), mask)
 
     def dataset(self, n=200, outputDir="output", n_jobs=None):
-        from utils import setFolder
+        from Utils.index import setFolder
         import concurrent.futures
         import multiprocessing
         import os
@@ -286,3 +291,4 @@ class SyntheticGenerator:
     
     def print(self):
         print(json.dumps(self.getMetrics(), indent=4))
+

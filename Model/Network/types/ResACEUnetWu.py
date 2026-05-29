@@ -1,4 +1,5 @@
 from typing import Tuple, Union, Sequence
+
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -6,11 +7,9 @@ from monai.networks.blocks.dynunet_block import UnetOutBlock, UnetResBlock, get_
 from monai.networks.layers.utils import get_norm_layer
 from monai.utils import optional_import, ensure_tuple_rep
 from monai.networks.layers import trunc_normal_
-import einops
 
 
-
-class ResACEUNet2(nn.Module):
+class ResACEUnetWu(nn.Module):
     def __init__(
             self,
             in_channels: int,
@@ -134,6 +133,7 @@ class ResACEUNet2(nn.Module):
         dec1 = self.decoder3(dec2, enc1)
         out = self.decoder2(dec1, convBlock)
         logits = self.out1(out)
+
         return logits
 
 einops, _ = optional_import("einops")

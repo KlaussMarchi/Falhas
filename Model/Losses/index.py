@@ -61,6 +61,7 @@ class BinaryDiceLoss(nn.Module):
         with torch.amp.autocast('cuda', enabled=False):
             return self._loss(p.float(), t.float())
 
+
 class BinaryDiceFocalLoss(nn.Module):
     def __init__(self):
         super().__init__()
@@ -71,32 +72,55 @@ class BinaryDiceFocalLoss(nn.Module):
             return self._loss(p.float(), t.float())
 
 class CustomDiceBCELoss(nn.Module):
-    def __init__(self, smooth=1.0):
+    def __init__(self, smooth=1e-5):
         super().__init__()
-        self.bce = nn.BCEWithLogitsLoss()
+        self.bce = nn.BCEWithLogitsLoss() 
         self.smooth = smooth
         
     def forward(self, logits, y):
         with torch.amp.autocast('cuda', enabled=False):
             logits = logits.float()
             y = y.float()
+            
+            if y.shape != logits.shape:
+                y = y.view_as(logits)
+
             bce_loss = self.bce(logits, y)
-            p        = torch.sigmoid(logits)
+            p = torch.sigmoid(logits)
             
-            spatial_dims = (2, 3, 4) if p.ndim == 5 else (2, 3)
-            intersection = (p * y).sum(dim=spatial_dims)
-            union = p.sum(dim=spatial_dims) + y.sum(dim=spatial_dims)
+            p_flat = p.contiguous().view(p.shape[0], -1)
+            y_flat = y.contiguous().view(y.shape[0], -1)
             
+            intersection = (p_flat * y_flat).sum(dim=1)
+            union = p_flat.sum(dim=1) + y_flat.sum(dim=1)
             dice = (2. * intersection + self.smooth) / (union + self.smooth)
             dice_loss = 1 - dice.mean()
             return 0.5 * bce_loss + 0.5 * dice_loss
+
+
+class BinaryDiceFocalLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self._loss = losses.DiceFocalLoss(to_onehot_y=False, sigmoid=True)
+
+    def forward(self, logits, target):
+        with torch.amp.autocast('cuda', enabled=False):
+            logits = logits.float()
+            target = target.float()
+            
+            # PROTEÇÃO DE SHAPE (OBRIGATÓRIA)
+            if target.shape != logits.shape:
+                target = target.view_as(logits)
+                
+            return self._loss(logits, target)
 
 
 class Losses:
     binary = {
         'dice': BinaryDiceLoss(),
         'dice_bce':  CustomDiceBCELoss(),
-        'dice_focal': BinaryDiceFocalLoss()
+        'dice_focal': BinaryDiceFocalLoss(),
+        'focal': BinaryDiceFocalLoss()
     }
 
     multiclass = {   
