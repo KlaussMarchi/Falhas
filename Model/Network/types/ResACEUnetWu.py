@@ -307,8 +307,8 @@ class ACE(nn.Module):
 
         v_SA_projected = self.F(v_SA)
 
-        q_shared = F.normalize(q_shared, dim=-1)
-        k_shared = F.normalize(k_shared, dim=-1)
+        q_shared = F.normalize(q_shared, dim=-1, eps=1e-4)
+        k_shared = F.normalize(k_shared, dim=-1, eps=1e-4)
 
         attn_CA = (q_shared @ k_shared.transpose(-2, -1)) * self.temperature
 
