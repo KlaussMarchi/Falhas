@@ -1,5 +1,4 @@
 from typing import Tuple, Union, Sequence
-
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -7,6 +6,8 @@ from monai.networks.blocks.dynunet_block import UnetOutBlock, UnetResBlock, get_
 from monai.networks.layers.utils import get_norm_layer
 from monai.utils import optional_import, ensure_tuple_rep
 from monai.networks.layers import trunc_normal_
+import einops
+
 
 
 class ResACEUnetWu(nn.Module):
@@ -133,7 +134,6 @@ class ResACEUnetWu(nn.Module):
         dec1 = self.decoder3(dec2, enc1)
         out = self.decoder2(dec1, convBlock)
         logits = self.out1(out)
-
         return logits
 
 einops, _ = optional_import("einops")
@@ -272,9 +272,9 @@ class ACE(nn.Module):
 
         self.attn_drop = nn.Dropout(channel_attn_drop)
         self.attn_drop_2 = nn.Dropout(spatial_attn_drop)
-
-        self.rate = torch.nn.Parameter(torch.Tensor(1))
-        self.rate2 = torch.nn.Parameter(torch.Tensor(1))
+        
+        self.rate = torch.nn.Parameter(torch.ones(1) * 0.5)
+        self.rate2 = torch.nn.Parameter(torch.ones(1) * 0.5)
 
         self.out_proj = nn.Linear(hidden_size, int(hidden_size // 2))
         self.out_proj2 = nn.Linear(hidden_size, int(hidden_size // 2))
