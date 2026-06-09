@@ -3,14 +3,16 @@ from tqdm import tqdm
 import scipy.ndimage as ndimage
 import os, json
 
-import numpy as np
-from tqdm import tqdm
-import scipy.ndimage as ndimage
-import os, json
+
+def seed_everything(seed=42):
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    np.random.default_rng(seed=seed)
+    print('random seed done')
 
 
 class SyntheticGenerator:
-    def __init__(self, shape=(128, 128, 128)):
+    def __init__(self, shape=(128, 128, 128), seed=None):
         # ── Image Format ─────────────────────────────────────────────
         self.margin = 64                  # Buffer para absorver dobras extremas nas bordas com segurança
         self.finalShape = shape           # (nx, ny, nz) final output volume size
@@ -57,6 +59,9 @@ class SyntheticGenerator:
         self.ny = self.finalShape[1] + 2 * self.margin
         self.nz = self.finalShape[2] + 2 * self.margin
         self.shape = (self.nx, self.ny, self.nz)
+
+        if seed:
+            seed_everything(seed)
 
     def get(self):
         data = self.genReflectivity()
@@ -291,4 +296,3 @@ class SyntheticGenerator:
     
     def print(self):
         print(json.dumps(self.getMetrics(), indent=4))
-
