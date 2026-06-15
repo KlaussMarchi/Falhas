@@ -50,13 +50,13 @@ from datetime import datetime
 
 # Número máximo de trials por sessão de otimização.
 # O script pode ser reiniciado e continuará de onde parou.
-N_TRIALS = 50
+N_TRIALS = 150
 
 # Direção da otimização: maximizar iou_wu
 DIRECTION = "maximize"
 
 # Nome do estudo Optuna (identificador único)
-STUDY_NAME = "falhas_synthetic_hpo"
+STUDY_NAME = "falhas_synthetic_hpo_v2"
 
 # Caminho do banco de dados SQLite para persistência
 STUDY_DB_PATH = os.path.abspath("../Searcher/study.db")
@@ -82,7 +82,7 @@ JUPYTER_KERNEL = "python3"
 # são alterados pelo Optuna. Apenas config.json é otimizado.
 
 TRAINING_CONFIG = {
-    "network": "standard",
+    "network": "unet3d_v2",
     "dataset": "dataset_wu",
     "img_size": None,
     "lr": 0.001,
@@ -104,68 +104,92 @@ TRAINING_CONFIG = {
 #   "float_range"  → par [min, max] de floats
 #   "float_scalar" → valor float único
 #
-# Os limites foram definidos com base nos valores do model_1
-# (melhor resultado conhecido: 59.6% IoU) com margens generosas
-# para permitir exploração pelo algoritmo Bayesiano.
+# RODADA 3 — Bounds recalibrados com base em 35 trials completas.
+# Melhor modelo: model_21 (IoU 0.673). Dois clusters de alta
+# performance foram identificados e os bounds agora abrangem ambos.
+# Correção crítica: bounds anteriores excluíam regiões dos TOP models.
 
 SEARCH_SPACE = [
     # ── Parâmetros de Camadas ──
+    # TOP5 usam 68-85; bounds antigos (30,75) excluíam model_21/20
     {"name": "layerRange",      "type": "int_range",
-     "min_bounds": (30, 150),   "max_bounds": (100, 350)},
+     "min_bounds": (55, 100),   "max_bounds": (130, 210)},
+    # TOP10: TODOS usam min=1 (corr -0.49**). Fixar min=1.
     {"name": "layerThickness",  "type": "int_range",
-     "min_bounds": (1, 4),      "max_bounds": (2, 10)},
+     "min_bounds": (1, 1),      "max_bounds": (2, 5)},
 
     # ── Parâmetros de Dobras (Folds) ──
+    # TOP5 usam 13-25; bounds antigos (3,15) excluíam model_21/20
     {"name": "foldCount",       "type": "int_range",
-     "min_bounds": (3, 30),     "max_bounds": (15, 80)},
+     "min_bounds": (10, 28),    "max_bounds": (38, 60)},
+    # TOP5 usam 16-28; bounds antigos (3,18) excluíam model_21/20
     {"name": "foldSigma",       "type": "int_range",
-     "min_bounds": (3, 35),     "max_bounds": (20, 120)},
+     "min_bounds": (12, 30),    "max_bounds": (35, 75)},
+    # TOP10 usam -34 a -27 (min), -2 a 8 (max); bounds antigos muito largos
     {"name": "foldAmplitude",   "type": "int_range",
-     "min_bounds": (-50, -5),   "max_bounds": (-10, 20)},
+     "min_bounds": (-38, -24),  "max_bounds": (-5, 10)},
+    # Correlação -0.56*** (menor = melhor); TOP10: 0.65-1.34
     {"name": "foldDamping",     "type": "float_scalar",
-     "bounds": (0.5, 3.5)},
+     "bounds": (0.5, 1.5)},
+    # TOP10: min=-0.79..0.02, max=3.5..4.76; apertar
     {"name": "foldBaseShift",   "type": "float_range",
-     "min_bounds": (-3.0, 0.5), "max_bounds": (1.0, 7.0)},
+     "min_bounds": (-1.0, 0.2), "max_bounds": (3.0, 5.0)},
 
     # ── Parâmetros de Cisalhamento (Shear) ──
+    # TOP10: offset_min -9.14..-7.72; apertar range
     {"name": "shearOffset",     "type": "float_range",
-     "min_bounds": (-12.0, -1.0), "max_bounds": (0.5, 8.0)},
+     "min_bounds": (-9.5, -7.5), "max_bounds": (2.5, 6.0)},
+    # Corr -0.38* no max; TOP10: min=-0.124..-0.094, max=0.001..0.026
     {"name": "shearGradient",   "type": "float_range",
-     "min_bounds": (-0.20, -0.02), "max_bounds": (-0.005, 0.08)},
+     "min_bounds": (-0.13, -0.09), "max_bounds": (0.00, 0.03)},
 
     # ── Parâmetros de Falhas (Faults) ──
+    # TOP5 usam min=2-6; bounds antigos (4,6) excluíam model_21/20
     {"name": "faultCount",      "type": "int_range",
-     "min_bounds": (1, 6),      "max_bounds": (4, 15)},
+     "min_bounds": (1, 6),      "max_bounds": (7, 12)},
+    # Corr +0.44** no min (maior=melhor); TOP10: min=13-15, max=26-38
     {"name": "faultThrow",      "type": "int_range",
-     "min_bounds": (2, 15),     "max_bounds": (10, 60)},
+     "min_bounds": (12, 16),    "max_bounds": (28, 42)},
+    # MAIOR correlação +0.67*** no min! TOP5: min=56-65, max=75-81
     {"name": "faultDipAngle",   "type": "int_range",
-     "min_bounds": (20, 65),    "max_bounds": (50, 90)},
+     "min_bounds": (50, 68),    "max_bounds": (74, 82)},
+    # TOP5 usam 4.39-5.77; bounds antigos (5.5,7.5) excluíam model_21/20
     {"name": "faultRoughness",  "type": "float_scalar",
-     "bounds": (1.0, 8.0)},
+     "bounds": (3.5, 6.5)},
+    # TOP10: 5.47-9.59; apertar range
     {"name": "faultRoughSigma", "type": "float_scalar",
-     "bounds": (1.5, 12.0)},
+     "bounds": (4.5, 10.0)},
+    # Corr -0.58*** no max (menor=melhor); TOP10: min=32-52, max=49-80
     {"name": "faultDecaySigma", "type": "int_range",
-     "min_bounds": (15, 65),    "max_bounds": (40, 160)},
+     "min_bounds": (30, 55),    "max_bounds": (45, 85)},
+    # TOP10: 0.79-1.16; apertar
     {"name": "faultZoneWidth",  "type": "float_scalar",
-     "bounds": (0.3, 2.5)},
+     "bounds": (0.70, 1.20)},
+    # TOP10: 0.57-0.72; apertar
     {"name": "faultThreshold",  "type": "float_scalar",
-     "bounds": (0.3, 1.0)},
+     "bounds": (0.50, 0.75)},
+    # Corr -0.35* (menor=melhor); TOP5 usam 0.10-0.35; bound (0.30,0.70) excluía!
     {"name": "faultCurveProb",  "type": "float_scalar",
-     "bounds": (0.05, 0.7)},
+     "bounds": (0.05, 0.45)},
+    # Corr +0.36*; TOP10: 4.82-6.70; subir mínimo
     {"name": "faultCurveMax",   "type": "float_scalar",
-     "bounds": (1.0, 7.0)},
+     "bounds": (4.0, 7.0)},
 
     # ── Parâmetros de Wavelet ──
+    # Corr -0.60*** Spearman no max (menor=melhor); TOP10: min=77-89, max=80-109
     {"name": "waveletFreq",     "type": "int_range",
-     "min_bounds": (25, 120),   "max_bounds": (80, 350)},
+     "min_bounds": (70, 95),    "max_bounds": (78, 110)},
+    # Corr +0.42* (maior=melhor); TOP10: 0.098-0.113
     {"name": "waveletDuration", "type": "float_scalar",
-     "bounds": (0.02, 0.15)},
+     "bounds": (0.09, 0.12)},
+    # TOP10: 0.0017-0.0026; apertar
     {"name": "waveletDt",       "type": "float_scalar",
-     "bounds": (0.0005, 0.005)},
+     "bounds": (0.0015, 0.0028)},
 
     # ── Parâmetros de Ruído ──
+    # Corr +0.45** no max (maior=melhor); TOP10: min=0.015-0.027, max=0.49-0.56
     {"name": "noiseLevel",      "type": "float_range",
-     "min_bounds": (0.0, 0.05), "max_bounds": (0.05, 0.7)},
+     "min_bounds": (0.01, 0.03), "max_bounds": (0.48, 0.60)},
 ]
 
 
