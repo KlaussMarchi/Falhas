@@ -40,6 +40,7 @@ import os
 import json
 import glob
 import csv
+import random
 import traceback
 from datetime import datetime
 
@@ -55,8 +56,12 @@ N_TRIALS = 150
 # Direção da otimização: maximizar iou_wu
 DIRECTION = "maximize"
 
+# Fração de trials aleatórias para escapar de máximos locais.
+# 0.2 = 20% random, 80% TPE Bayesiano. Valor recomendado: 0.15-0.25
+EXPLORATION_RATE = 0.20
+
 # Nome do estudo Optuna (identificador único)
-STUDY_NAME = "falhas_synthetic_hpo_v2"
+STUDY_NAME = "falhas_synthetic_hpo_v3"
 
 # Caminho do banco de dados SQLite para persistência
 STUDY_DB_PATH = os.path.abspath("../Searcher/study.db")
@@ -113,7 +118,7 @@ SEARCH_SPACE = [
     # ── Parâmetros de Camadas ──
     # TOP5 usam 68-85; bounds antigos (30,75) excluíam model_21/20
     {"name": "layerRange",      "type": "int_range",
-     "min_bounds": (55, 100),   "max_bounds": (130, 210)},
+     "min_bounds": (20, 100),   "max_bounds": (130, 350)},
     # TOP10: TODOS usam min=1 (corr -0.49**). Fixar min=1.
     {"name": "layerThickness",  "type": "int_range",
      "min_bounds": (1, 1),      "max_bounds": (2, 5)},
@@ -155,7 +160,7 @@ SEARCH_SPACE = [
      "min_bounds": (50, 68),    "max_bounds": (74, 82)},
     # TOP5 usam 4.39-5.77; bounds antigos (5.5,7.5) excluíam model_21/20
     {"name": "faultRoughness",  "type": "float_scalar",
-     "bounds": (3.5, 6.5)},
+     "bounds": (3.0, 7.0)},
     # TOP10: 5.47-9.59; apertar range
     {"name": "faultRoughSigma", "type": "float_scalar",
      "bounds": (4.5, 10.0)},
@@ -164,32 +169,32 @@ SEARCH_SPACE = [
      "min_bounds": (30, 55),    "max_bounds": (45, 85)},
     # TOP10: 0.79-1.16; apertar
     {"name": "faultZoneWidth",  "type": "float_scalar",
-     "bounds": (0.70, 1.20)},
+     "bounds": (0.40, 1.50)},
     # TOP10: 0.57-0.72; apertar
     {"name": "faultThreshold",  "type": "float_scalar",
-     "bounds": (0.50, 0.75)},
+     "bounds": (0.10, 0.9)},
     # Corr -0.35* (menor=melhor); TOP5 usam 0.10-0.35; bound (0.30,0.70) excluía!
     {"name": "faultCurveProb",  "type": "float_scalar",
-     "bounds": (0.05, 0.45)},
+     "bounds": (0.005, 0.5)},
     # Corr +0.36*; TOP10: 4.82-6.70; subir mínimo
     {"name": "faultCurveMax",   "type": "float_scalar",
-     "bounds": (4.0, 7.0)},
+     "bounds": (4.0, 15.0)},
 
     # ── Parâmetros de Wavelet ──
     # Corr -0.60*** Spearman no max (menor=melhor); TOP10: min=77-89, max=80-109
     {"name": "waveletFreq",     "type": "int_range",
-     "min_bounds": (70, 95),    "max_bounds": (78, 110)},
+     "min_bounds": (60, 100),    "max_bounds": (78, 110)},
     # Corr +0.42* (maior=melhor); TOP10: 0.098-0.113
     {"name": "waveletDuration", "type": "float_scalar",
      "bounds": (0.09, 0.12)},
     # TOP10: 0.0017-0.0026; apertar
     {"name": "waveletDt",       "type": "float_scalar",
-     "bounds": (0.0015, 0.0028)},
+     "bounds": (0.0005, 0.0030)},
 
     # ── Parâmetros de Ruído ──
     # Corr +0.45** no max (maior=melhor); TOP10: min=0.015-0.027, max=0.49-0.56
     {"name": "noiseLevel",      "type": "float_range",
-     "min_bounds": (0.01, 0.03), "max_bounds": (0.48, 0.60)},
+     "min_bounds": (0.01, 0.03), "max_bounds": (0.48, 0.65)},
 ]
 
 
@@ -571,13 +576,26 @@ def main():
     os.makedirs(os.path.dirname(STUDY_DB_PATH), exist_ok=True)
     os.makedirs(DATABASE_DIR, exist_ok=True)
 
+    # Criar sampler híbrido: TPE (Bayesiano) + Random (exploração)
+    # A cada trial, há EXPLORATION_RATE de chance de ser 100% aleatória,
+    # forçando o Optuna a explorar regiões inesperadas e evitar
+    # convergência prematura para máximos locais.
+    tpe_sampler = optuna.samplers.TPESampler(
+        seed=42,
+        multivariate=True,     # Modela correlações entre parâmetros
+        n_startup_trials=10,   # 10 primeiras trials são aleatórias
+    )
+    random_sampler = optuna.samplers.RandomSampler(seed=123)
+
+    print(f"\n🎲 Sampler híbrido: {int((1-EXPLORATION_RATE)*100)}% TPE + "
+          f"{int(EXPLORATION_RATE*100)}% Random (exploração)")
+
     # Criar ou carregar o study com persistência SQLite
-    sampler = optuna.samplers.TPESampler(seed=42)
     study = optuna.create_study(
         study_name=STUDY_NAME,
         storage=STUDY_STORAGE,
         direction=DIRECTION,
-        sampler=sampler,
+        sampler=tpe_sampler,
         load_if_exists=True,  # ← Resiliência: retoma de onde parou
     )
 
@@ -596,9 +614,34 @@ def main():
         print(f"   Melhor iou_wu: {study.best_value:.4f}")
         print(f"   Melhor trial: #{study.best_trial.number}")
 
-    # Executar otimização
-    print(f"\n🚀 Iniciando otimização ({N_TRIALS} trials)...\n")
-    study.optimize(objective, n_trials=N_TRIALS)
+    # Executar otimização com sampler híbrido (TPE + Random)
+    # Em vez de study.optimize(), usamos um loop manual que troca
+    # o sampler do study antes de cada trial. Isso garante que
+    # ~20% das trials sejam puramente aleatórias (exploração),
+    # evitando convergência prematura para máximos locais.
+    print(f"\n🚀 Iniciando otimização ({N_TRIALS} trials)...")
+    print(f"   🎲 Exploração aleatória: {int(EXPLORATION_RATE*100)}% das trials\n")
+
+    for i in range(N_TRIALS):
+        # Decidir se esta trial é exploratória (random) ou guiada (TPE)
+        is_exploration = random.random() < EXPLORATION_RATE
+
+        if is_exploration:
+            study.sampler = random_sampler
+            print(f"\n  🎲 Trial {i+1}/{N_TRIALS} → EXPLORAÇÃO ALEATÓRIA")
+        else:
+            study.sampler = tpe_sampler
+            print(f"\n  🧠 Trial {i+1}/{N_TRIALS} → TPE BAYESIANO")
+
+        try:
+            study.optimize(objective, n_trials=1)
+        except KeyboardInterrupt:
+            print("\n\n  ⚠ Interrupção manual detectada. Salvando progresso...")
+            break
+        except Exception as e:
+            print(f"\n  ✘ Erro na trial: {e}")
+            traceback.print_exc()
+            continue
 
     # Resumo final
     print("\n" + "=" * 60)
