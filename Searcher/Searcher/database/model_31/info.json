@@ -1,0 +1,71 @@
+{
+    "model": "model_31",
+    "iou_wu": 0.6231446862220764,
+    "config": {
+        "layerRange": [
+            30,
+            164
+        ],
+        "layerThickness": [
+            1,
+            3
+        ],
+        "foldCount": [
+            8,
+            30
+        ],
+        "foldSigma": [
+            11,
+            29
+        ],
+        "foldAmplitude": [
+            -42,
+            18
+        ],
+        "foldDamping": 2.4545436206785336,
+        "foldBaseShift": [
+            -2.150696691106931,
+            3.7725768330713723
+        ],
+        "shearOffset": [
+            -10.044840217886922,
+            6.086140847826497
+        ],
+        "shearGradient": [
+            -0.1450643800700675,
+            0.032494786294509026
+        ],
+        "faultCount": [
+            6,
+            13
+        ],
+        "faultThrow": [
+            14,
+            46
+        ],
+        "faultDipAngle": [
+            50,
+            80
+        ],
+        "faultRoughness": 6.228669170537033,
+        "faultRoughSigma": 10.223848354160378,
+        "faultDecaySigma": [
+            59,
+            132
+        ],
+        "faultZoneWidth": 0.8299316403806075,
+        "faultThreshold": 0.5684382455805882,
+        "faultCurveProb": 0.5842195082040708,
+        "faultCurveMax": 1.609255900376466,
+        "waveletFreq": [
+            83,
+            89
+        ],
+        "waveletDuration": 0.10299311592166972,
+        "waveletDt": 0.002309018545473562,
+        "noiseLevel": [
+            0.005619484495552649,
+            0.5507949328552192
+        ]
+    }
+}
