@@ -34,57 +34,89 @@ from datetime import datetime
 
 
 class SearchSpace:
-
     PARAMS = [
+        # ── Camadas ──
+        # TOP-10: min=[26,35], corr -0.559 (menor=melhor). Contraído upper de 100→50.
+        # TOP-10: max=[150,208]. nz=256→ >250 causa overlap. Contraído 350→250.
         {"name": "layerRange",      "type": "int_range",
-         "min_bounds": (20, 100),   "max_bounds": (130, 350)},
+         "min_bounds": (20, 50),    "max_bounds": (130, 350)},
+        # TOP-10: TODOS min=1 (corr -0.628). TOP-10 max=2-4. Contraído 5→4.
         {"name": "layerThickness",  "type": "int_range",
-         "min_bounds": (1, 1),      "max_bounds": (2, 5)},
+         "min_bounds": (1, 1),      "max_bounds": (2, 4)},
 
+        # ── Dobras ──
+        # TOP-10: min=[5,13], corr -0.476 (menos dobras=melhor). Contraído 5→4.
         {"name": "foldCount",       "type": "int_range",
-         "min_bounds": (5, 28),     "max_bounds": (28, 60)},
+         "min_bounds": (4, 28),     "max_bounds": (28, 60)},
+        # TOP-10: max=[27,48]. Contraído 75→55 (nenhum top usa >48).
         {"name": "foldSigma",       "type": "int_range",
-         "min_bounds": (7, 30),     "max_bounds": (27, 75)},
+         "min_bounds": (7, 30),     "max_bounds": (27, 55)},
+        # TOP-10: min=[-48,-35], max=[9,20]. Corr min=-0.447, max=+0.401.
+        # Amplitude larga=melhor. Expandido max upper 22→25.
         {"name": "foldAmplitude",   "type": "int_range",
-         "min_bounds": (-50, -24),  "max_bounds": (-5, 22)},
+         "min_bounds": (-50, -24),  "max_bounds": (-5, 25)},
+        # TOP-10: [1.41, 2.47], mean=2.13. Sem correlação clara.
         {"name": "foldDamping",     "type": "float_scalar",
          "bounds": (0.5, 2.5)},
+        # TOP-10: min=[-2.69, -0.53], max=[1.05, 4.39]. Corr fraca.
         {"name": "foldBaseShift",   "type": "float_range",
          "min_bounds": (-3.0, 0.5), "max_bounds": (1.0, 7.0)},
 
+        # ── Cisalhamento ──
+        # TOP-10: min=[-10.18, -8.96]. Corr -0.412 (mais negativo=melhor).
         {"name": "shearOffset",     "type": "float_range",
          "min_bounds": (-10.5, -7.5), "max_bounds": (2.5, 8.0)},
+        # TOP-10: min=[-0.148,-0.120], max=[0.015,0.043]. Corr fraca.
         {"name": "shearGradient",   "type": "float_range",
          "min_bounds": (-0.16, -0.09), "max_bounds": (0.00, 0.06)},
 
+        # ── Falhas ──
+        # TOP-10: min TODOS=6 (corr +0.578!!!). Contraído 1→4.
         {"name": "faultCount",      "type": "int_range",
-         "min_bounds": (1, 6),      "max_bounds": (7, 15)},
+         "min_bounds": (4, 6),      "max_bounds": (7, 15)},
+        # TOP-10: min=[12,15], corr +0.492 (maior=melhor).
         {"name": "faultThrow",      "type": "int_range",
          "min_bounds": (12, 16),    "max_bounds": (28, 60)},
+        # TOP-10: min=[42,56], max=[79,83]. Corr min=+0.389, max=+0.564.
         {"name": "faultDipAngle",   "type": "int_range",
          "min_bounds": (40, 68),    "max_bounds": (74, 84)},
+        # TOP-10: [6.01, 6.97], mean=6.43. Corr +0.338.
         {"name": "faultRoughness",  "type": "float_scalar",
          "bounds": (3.0, 7.0)},
+        # TOP-10: [7.67, 11.18], mean=9.83. Corr +0.402.
         {"name": "faultRoughSigma", "type": "float_scalar",
          "bounds": (4.5, 12.0)},
+        # TOP-10: min=[43,62], max=[74,137]. Contraído min lower 30→35.
         {"name": "faultDecaySigma", "type": "int_range",
-         "min_bounds": (30, 65),    "max_bounds": (45, 160)},
+         "min_bounds": (35, 65),    "max_bounds": (45, 160)},
+        # TOP-10: [0.78, 1.16], mean=0.92. Corr -0.372 (menor=melhor).
         {"name": "faultZoneWidth",  "type": "float_scalar",
          "bounds": (0.40, 1.50)},
+        # TOP-10: [0.49, 0.72], mean=0.58. Corr -0.266.
         {"name": "faultThreshold",  "type": "float_scalar",
          "bounds": (0.10, 0.9)},
+        # TOP-10: [0.35, 0.67], corr +0.296. Expandido upper 0.7→0.80.
+        # Contraído lower 0.005→0.10 (nenhum top usa <0.35).
         {"name": "faultCurveProb",  "type": "float_scalar",
-         "bounds": (0.005, 0.7)},
+         "bounds": (0.10, 0.80)},
+        # TOP-10: [1.69, 8.51], mean=5.52. TOP-5: [4.30, 8.51].
         {"name": "faultCurveMax",   "type": "float_scalar",
          "bounds": (1.0, 15.0)},
 
+        # ── Wavelet ──
+        # TOP-10: min=[74,109], max=[80,117]. Corr max=-0.557 (menor=melhor).
+        # Contraído min lower 60→65.
         {"name": "waveletFreq",     "type": "int_range",
-         "min_bounds": (60, 110),   "max_bounds": (78, 120)},
+         "min_bounds": (65, 110),   "max_bounds": (78, 120)},
+        # TOP-10: [0.100, 0.111]. Contraído (0.09,0.12)→(0.095,0.115).
         {"name": "waveletDuration", "type": "float_scalar",
-         "bounds": (0.09, 0.12)},
+         "bounds": (0.095, 0.115)},
+        # TOP-10: [0.0015, 0.0024]. Contraído (0.0005,0.003)→(0.0012,0.0025).
         {"name": "waveletDt",       "type": "float_scalar",
-         "bounds": (0.0005, 0.0030)},
+         "bounds": (0.0012, 0.0025)},
 
+        # ── Ruído ──
+        # TOP-10: min=[0.003,0.043], max=[0.527,0.647]. Corr max=+0.572.
         {"name": "noiseLevel",      "type": "float_range",
          "min_bounds": (0.003, 0.05), "max_bounds": (0.48, 0.70)},
     ]
@@ -371,7 +403,7 @@ class PipelineExecutor:
 
 class StudyManager:
 
-    STUDY_NAME = "falhas_synthetic_hpo_v4"
+    STUDY_NAME = "falhas_synthetic_hpo_v5"
     DIRECTION = "maximize"
 
     TRAINING_CONFIG = {
