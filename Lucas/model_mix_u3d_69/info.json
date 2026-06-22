@@ -1,0 +1,48 @@
+{
+    "trainer": {
+        "path": "model_1",
+        "loss": "dice_focal",
+        "scheduler": "plateau",
+        "epochs": 50,
+        "batch_size": 4,
+        "val_iou": 0.7064797282218933,
+        "test_iou": 0.7358302474021912
+    },
+    "processing": {
+        "network": "unet3d_v2",
+        "dataset": "dataset_mix_2",
+        "img_size": [
+            128,
+            128,
+            128
+        ],
+        "lr": 0.001,
+        "loss": "dice_focal",
+        "batch_size": 4,
+        "scheduler": "plateau",
+        "dropout": 0.1,
+        "num_filters": 16,
+        "n_images": {
+            "total": 330,
+            "train": 300,
+            "val": 15,
+            "test": 15
+        }
+    },
+    "model": {
+        "network": "unet3d_v2",
+        "img_size": [
+            128,
+            128,
+            128
+        ],
+        "classes": 1,
+        "channels": 1,
+        "dropout": 0.1,
+        "num_filters": 16,
+        "lr": 0.001
+    },
+    "iou": {
+        "mean": 0.7358302474021912
+    }
+}

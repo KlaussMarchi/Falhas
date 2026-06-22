@@ -1,10 +1,10 @@
 {
     "network": "unet3d_v2",
-    "dataset": "dataset_70",
+    "dataset": "dataset_mix_2",
     "img_size": null,
     "lr": 0.001,
     "loss": "dice_focal",
-    "batch_size": 2,
+    "batch_size": 4,
     "scheduler": "plateau",
     "dropout": 0.1,
     "num_filters": 16
