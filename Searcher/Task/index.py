@@ -20,13 +20,13 @@
       b) Dataset/dataset_synthetic/Format.ipynb — Pré-processa
       c) Model/Analysis.ipynb — Treina a U-Net 3D
       d) Model/Predict.ipynb — Avalia no dataset_wu
-   5. Coleta iou_wu do resultado em Searcher/database
+   5. Coleta iou_wu do resultado em Model/Backup
    6. Atualiza CSV de histórico
 
- Resiliência: O study é persistido em SQLite (Searcher/study.db).
+ Resiliência: O study é persistido em SQLite (Model/Backup/study.db).
  Se o terminal for fechado, basta reiniciar este script.
 
- Histórico Manual: Resultados anteriores em Searcher/database/model_*
+ Histórico Manual: Resultados anteriores em Model/Backup/model_*
  são injetados automaticamente no study como trials completadas.
 ==========================================================================
 """
@@ -51,7 +51,7 @@ from datetime import datetime
 
 # Número máximo de trials por sessão de otimização.
 # O script pode ser reiniciado e continuará de onde parou.
-N_TRIALS = 150
+N_TRIALS = 50
 
 # Direção da otimização: maximizar iou_wu
 DIRECTION = "maximize"
@@ -64,14 +64,14 @@ EXPLORATION_RATE = 0.20
 STUDY_NAME = "falhas_synthetic_hpo_v3"
 
 # Caminho do banco de dados SQLite para persistência
-STUDY_DB_PATH = os.path.abspath("../Searcher/study.db")
+STUDY_DB_PATH = os.path.abspath("../Model/Backup/study.db")
 STUDY_STORAGE = f"sqlite:///{STUDY_DB_PATH}"
 
 # Caminho do CSV de histórico legível por humanos
-CSV_HISTORY_PATH = os.path.abspath("../Searcher/historico_otimizacao.csv")
+CSV_HISTORY_PATH = os.path.abspath("../Model/Backup/historico_otimizacao.csv")
 
 # Caminho da pasta de resultados
-DATABASE_DIR = os.path.abspath("../Searcher/database")
+DATABASE_DIR = os.path.abspath("../Model/Backup")
 
 # Caminho do config.json de geração sintética
 SYNTHETIC_CONFIG_PATH = os.path.abspath("../Synthetic/config.json")
@@ -325,11 +325,11 @@ def execute_notebook(path):
 
 def get_all_database_results():
     """
-    Lê todos os resultados existentes em Searcher/database/model_*/info.json.
+    Lê todos os resultados existentes em Model/Backup/model_*/synthetic.json.
     Retorna uma lista de dicts: [{"model": "model_1", "iou_wu": 0.59, "config": {...}}, ...]
     """
     results = []
-    pattern = os.path.join(DATABASE_DIR, "model_*", "info.json")
+    pattern = os.path.join(DATABASE_DIR, "model_*", "synthetic.json")
     for info_path in sorted(glob.glob(pattern)):
         try:
             with open(info_path, "r", encoding="utf-8") as f:
@@ -343,7 +343,7 @@ def get_all_database_results():
 
 def get_latest_model_id():
     """
-    Retorna o model_id mais recente em Searcher/database/.
+    Retorna o model_id mais recente em Model/Backup/.
     """
     pattern = os.path.join(DATABASE_DIR, "model_*")
     dirs = glob.glob(pattern)
@@ -355,12 +355,12 @@ def get_latest_model_id():
 
 def read_result(model_id):
     """
-    Lê o iou_wu de um resultado específico em Searcher/database.
+    Lê o iou_wu de um resultado específico em Model/Backup.
     Retorna o valor float ou None se não encontrado.
     """
     if model_id is None:
         return None
-    info_path = os.path.join(DATABASE_DIR, model_id, "info.json")
+    info_path = os.path.join(DATABASE_DIR, model_id, "synthetic.json")
     if not os.path.exists(info_path):
         return None
     try:
@@ -373,7 +373,7 @@ def read_result(model_id):
 
 def inject_historical_trials(study, distributions):
     """
-    Injeta trials históricas (resultados manuais em Searcher/database)
+    Injeta trials históricas (resultados manuais em Model/Backup)
     no study do Optuna como trials completadas.
     Usa study.user_attrs para rastrear quais model_ids já foram injetados.
     """
@@ -599,8 +599,8 @@ def main():
         load_if_exists=True,  # ← Resiliência: retoma de onde parou
     )
 
-    # Injetar trials históricas de Searcher/database/
-    print("\n📂 Verificando histórico em Searcher/database/ ...")
+    # Injetar trials históricas de Model/Backup/
+    print("\n📂 Verificando histórico em Model/Backup/ ...")
     distributions = build_distributions()
     inject_historical_trials(study, distributions)
 
