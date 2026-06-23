@@ -1,8 +1,3 @@
-# conda activate NOME_ENV
-# pip install papermill
-# conda install ipykernel
-# python -m ipykernel install --user --name=NOME_ENV
-
 import papermill as pm
 from pathlib import Path
 import os, json
