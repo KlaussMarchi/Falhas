@@ -386,9 +386,14 @@ class Compose:
             {"name": "ElasticDeformation","args": {"alpha": 4, "sigma": 1, "p": 0.15}},
             {"name": "RandomShift",     "args": {"max_shift": [4, 4, 4], "p": 0.2}},
             {"name": "RandomZoom",      "args": {"low": 0.9, "high": 1.1, "p": 0.2}},
-            {"name": "Normalize"},
-            {"name": "Clip",            "args": {"low": -3, "high": 3}}
+            {"name": "Normalize"},          # ⚠ ver AVISO
+            {"name": "Clip",            "args": {"low": -3, "high": 3}}   # ⚠ ver AVISO
         ]
+
+    AVISO (evita queda de IoU): os dados já são gravados em [0,1] no Format e val/teste
+    NÃO passam por transforms. NÃO use "Normalize"/"Clip" (z-score) só no treino — isso
+    reescala apenas o treino (mean0/std1, ~[-3,3]) e dessincroniza a distribuição frente
+    a val/teste, derrubando o IoU. Use apenas espaciais + intensidade leve (range ~[0,1]).
     """
 
     def __init__(self, config):

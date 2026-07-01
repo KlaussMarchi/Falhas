@@ -22,9 +22,15 @@ Example:
         {"name": "ElasticDeformation","args": {"alpha": 4, "sigma": 1, "p": 0.15}},
         {"name": "RandomShift",     "args": {"max_shift": [4, 4, 4], "p": 0.2}},
         {"name": "RandomZoom",      "args": {"low": 0.9, "high": 1.1, "p": 0.2}},
-        {"name": "Normalize"},
-        {"name": "Clip",            "args": {"low": -3, "high": 3}}
+        {"name": "Normalize"},          # ⚠ ver AVISO
+        {"name": "Clip",            "args": {"low": -3, "high": 3}}   # ⚠ ver AVISO
     ]
+
+AVISO (evita queda de IoU): os dados já são gravados em [0,1] no Format (ver DataBase.csv)
+e val/teste NÃO passam por transforms. Logo NÃO use "Normalize"/"Clip" (z-score) só no
+treino — isso reescala apenas o treino para mean0/std1 (~[-3,3]) e dessincroniza a
+distribuição em relação a val/teste, derrubando o IoU. Prefira o bloco "Sugestão" abaixo
+(apenas espaciais + intensidade leve, que mantêm o range ~[0,1]).
 
 Sugestão:
 [
