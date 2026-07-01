@@ -118,7 +118,7 @@ SEARCH_SPACE = [
     # ── Parâmetros de Camadas ──
     # TOP5 usam 68-85; bounds antigos (30,75) excluíam model_21/20
     {"name": "layerRange",      "type": "int_range",
-     "min_bounds": (20, 100),   "max_bounds": (130, 350)},
+     "min_bounds": (10, 100),   "max_bounds": (130, 350)},
     # TOP10: TODOS usam min=1 (corr -0.49**). Fixar min=1.
     {"name": "layerThickness",  "type": "int_range",
      "min_bounds": (1, 1),      "max_bounds": (2, 5)},

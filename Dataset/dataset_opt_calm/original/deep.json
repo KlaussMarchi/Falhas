@@ -1,0 +1,8 @@
+{
+  "kind": "crosshatch",
+  "angle": 30,
+  "wavelet_f": 34,
+  "streak_w": 0.5,
+  "blob_w": 1.0,
+  "xcorr": 2.0
+}
