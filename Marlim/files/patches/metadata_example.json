@@ -1,0 +1,13 @@
+{
+  "total_inlines": 3530,
+  "first_inline": 992,
+  "last_inline": 4521,
+  "total_xlines": 2240,
+  "first_xline": 5762,
+  "last_xline": 10240,
+  "total_z": 1601,
+  "variable_z": "Depth",
+  "z_min": -8002.50,
+  "z_max": 2.50,
+  "z_delta": 8005.00
+}

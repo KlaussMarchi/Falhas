@@ -1,6 +1,6 @@
 {
     "network": "unet3d_v2",
-    "dataset": "dataset_opt_calm",
+    "dataset": "marlim_opt",
     "img_size": null,
     "lr": 0.001,
     "loss": "dice_focal",
