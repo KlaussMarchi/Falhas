@@ -5,12 +5,12 @@
         "scheduler": "plateau",
         "epochs": 100,
         "batch_size": 2,
-        "val_iou": 0.6959952116012573,
-        "test_iou": 0.7100850939750671
+        "val_iou": 0.6566246747970581,
+        "test_iou": 0.6196336150169373
     },
     "processing": {
         "network": "unet3d_v2",
-        "dataset": "dataset_opt_calm",
+        "dataset": "marlim_opt",
         "img_size": [
             128,
             128,
@@ -23,10 +23,10 @@
         "dropout": 0.1,
         "num_filters": 32,
         "n_images": {
-            "total": 280,
-            "train": 254,
-            "val": 13,
-            "test": 13
+            "total": 220,
+            "train": 200,
+            "val": 10,
+            "test": 10
         }
     },
     "model": {
@@ -43,6 +43,6 @@
         "lr": 0.001
     },
     "iou": {
-        "mean": 0.7100850939750671
+        "mean": 0.6196336150169373
     }
 }

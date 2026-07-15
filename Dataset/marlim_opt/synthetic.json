@@ -1,0 +1,290 @@
+{
+    "shape": [
+        128,
+        128,
+        128
+    ],
+    "marginZ": 72,
+    "zRange": [
+        150,
+        1360
+    ],
+    "freqKnots": [
+        [
+            150,
+            230
+        ],
+        [
+            400,
+            212
+        ],
+        [
+            550,
+            135
+        ],
+        [
+            700,
+            64
+        ],
+        [
+            850,
+            40
+        ],
+        [
+            1000,
+            42
+        ],
+        [
+            1150,
+            36
+        ],
+        [
+            1450,
+            32
+        ]
+    ],
+    "ampKnots": [
+        [
+            150,
+            1.35
+        ],
+        [
+            300,
+            1.35
+        ],
+        [
+            500,
+            1.15
+        ],
+        [
+            650,
+            0.47
+        ],
+        [
+            780,
+            0.63
+        ],
+        [
+            870,
+            1.19
+        ],
+        [
+            1000,
+            1.37
+        ],
+        [
+            1120,
+            1.0
+        ],
+        [
+            1220,
+            0.22
+        ],
+        [
+            1320,
+            0.09
+        ],
+        [
+            1450,
+            0.06
+        ]
+    ],
+    "hatchKnots": [
+        [
+            150,
+            0.02
+        ],
+        [
+            500,
+            0.04
+        ],
+        [
+            800,
+            0.1
+        ],
+        [
+            1050,
+            0.18
+        ],
+        [
+            1180,
+            0.55
+        ],
+        [
+            1300,
+            0.85
+        ],
+        [
+            1450,
+            0.95
+        ]
+    ],
+    "foldKnots": [
+        [
+            150,
+            0.25
+        ],
+        [
+            450,
+            0.45
+        ],
+        [
+            700,
+            0.9
+        ],
+        [
+            900,
+            1.0
+        ],
+        [
+            1200,
+            1.0
+        ],
+        [
+            1450,
+            0.9
+        ]
+    ],
+    "freqJitter": [
+        0.85,
+        1.15
+    ],
+    "ampJitter": [
+        0.75,
+        1.3
+    ],
+    "zShiftJitter": 60,
+    "pWaterTile": 0.12,
+    "pPureWater": 0.05,
+    "seafloorFrac": [
+        0.15,
+        0.65
+    ],
+    "seafloorAmp": [
+        4.0,
+        7.0
+    ],
+    "seafloorDip": [
+        -14,
+        4
+    ],
+    "layerDensity": [
+        0.16,
+        0.3
+    ],
+    "layerThickness": [
+        1,
+        3
+    ],
+    "markerCount": [
+        1,
+        4
+    ],
+    "markerAmp": [
+        1.8,
+        3.2
+    ],
+    "foldCount": [
+        6,
+        14
+    ],
+    "foldSigma": [
+        28,
+        110
+    ],
+    "foldAmplitude": [
+        3,
+        22
+    ],
+    "pFoldSharp": 0.3,
+    "wobbleSigma": [
+        7,
+        16
+    ],
+    "wobbleAmp": [
+        0.3,
+        1.3
+    ],
+    "dipGradient": [
+        -0.12,
+        0.04
+    ],
+    "dipGradientY": [
+        -0.05,
+        0.05
+    ],
+    "familyCount": [
+        1,
+        2
+    ],
+    "faultsPerFam": [
+        1,
+        3
+    ],
+    "maxFaults": 5,
+    "pNoFault": 0.14,
+    "faultDip": [
+        59,
+        82
+    ],
+    "faultDipJit": 3.0,
+    "azimuthSpread": 18.0,
+    "pAntithetic": 0.2,
+    "faultThrow": [
+        2.0,
+        26
+    ],
+    "faultSpacing": [
+        20,
+        60
+    ],
+    "throwGradient": [
+        0.0,
+        0.35
+    ],
+    "dragWidth": [
+        0.6,
+        5.5
+    ],
+    "planeWaveSigma": [
+        24,
+        60
+    ],
+    "planeWaveAmp": [
+        0.5,
+        3.0
+    ],
+    "pListric": 0.15,
+    "listricMax": 8.0,
+    "faultZoneWidth": 1.1,
+    "faultThrowMin": 1.2,
+    "maskAmpMin": 0.13,
+    "maskHatchMax": 0.68,
+    "pFaultDim": 0.3,
+    "faultDimAmp": [
+        0.1,
+        0.35
+    ],
+    "hatchAngle": [
+        28,
+        52
+    ],
+    "hatchFreq": [
+        30,
+        42
+    ],
+    "noiseLevel": [
+        0.02,
+        0.3
+    ],
+    "blurSigma": [
+        0.5,
+        0.5,
+        0.4
+    ],
+    "waveletDt": 0.0012,
+    "waveletDuration": 0.062,
+    "normMode": "global",
+    "globalGain": 0.165,
+    "clipLevel": 0.45
+}
