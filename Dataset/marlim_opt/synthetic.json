@@ -231,7 +231,7 @@
     "azimuthSpread": 18.0,
     "pAntithetic": 0.2,
     "faultThrow": [
-        2.0,
+        4,
         26
     ],
     "faultSpacing": [
@@ -244,7 +244,7 @@
     ],
     "dragWidth": [
         0.6,
-        5.5
+        2.6
     ],
     "planeWaveSigma": [
         24,
@@ -257,7 +257,7 @@
     "pListric": 0.15,
     "listricMax": 8.0,
     "faultZoneWidth": 1.1,
-    "faultThrowMin": 1.2,
+    "faultThrowMin": 2.0,
     "maskAmpMin": 0.13,
     "maskHatchMax": 0.68,
     "pFaultDim": 0.3,

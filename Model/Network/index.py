@@ -7,7 +7,7 @@ from monai.networks.nets import SegResNet
 
 from .types.UNet3D import UNet3D
 from .types.Unet3D_V2 import Unet3D_V2
-from .types.ResACEUnet2  import ResACE_Unet
+from .types.resaceunet import ResACEUnet
 
 
 class ModelNetwork:
@@ -45,6 +45,6 @@ class ModelNetwork:
             return SegResNet(spatial_dims=3, in_channels=self.channels, out_channels=self.classes, init_filters=self.num_filters, dropout_prob=self.dropout)
         
         if self.network == 'resaceunet':
-            return ResACE_Unet(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout)
+            return ResACEUnet(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
         
         return None
