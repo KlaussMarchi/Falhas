@@ -1,7 +1,7 @@
 [
     {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
+        "network": "resaceunet",
+        "dataset": "dataset_74_mar",
         "img_size": null,
         "lr": 0.001,
         "loss": "dice_focal",
@@ -10,205 +10,14 @@
         "dropout": 0.1,
         "num_filters": 32
     },
-
-    {
-        "network": "segresnet",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.001,
-        "loss": "dice_focal",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.1,
-        "num_filters": 32
-    },
+    
 
     {
         "network": "resaceunet",
-        "dataset": "dataset_wu",
+        "dataset": "dataset_wu_mar",
         "img_size": null,
         "lr": 0.001,
         "loss": "dice_focal",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.1,
-        "num_filters": 32
-    },
-
-    {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.005,
-        "loss": "dice_focal",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.1,
-        "num_filters": 32
-    },
-
-    {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.05,
-        "loss": "dice_focal",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.1,
-        "num_filters": 32
-    },
-
-    {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.0005,
-        "loss": "dice_focal",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.1,
-        "num_filters": 32
-    },
-
-    {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.01,
-        "loss": "dice_focal",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.1,
-        "num_filters": 32
-    },
-
-    {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.001,
-        "loss": "dice_focal",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.05,
-        "num_filters": 32
-    },
-
-    {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.001,
-        "loss": "dice_focal",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.15,
-        "num_filters": 32
-    },
-
-    {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.001,
-        "loss": "dice_focal",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.2,
-        "num_filters": 32
-    },
-
-    {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.001,
-        "loss": "dice_focal",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.25,
-        "num_filters": 32
-    },
-
-    {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.001,
-        "loss": "dice_focal",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.01,
-        "num_filters": 32
-    },
-
-    {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.001,
-        "loss": "dice_focal",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.1,
-        "num_filters": 16
-    },
-
-    {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.001,
-        "loss": "dice_focal",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.1,
-        "num_filters": 8
-    },
-
-    {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.001,
-        "loss": "dice_focal",
-        "batch_size": 4,
-        "scheduler": "plateau",
-        "dropout": 0.1,
-        "num_filters": 16
-    },
-
-    {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.001,
-        "loss": "dice",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.1,
-        "num_filters": 32
-    },
-
-    {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.001,
-        "loss": "dice_bce",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.1,
-        "num_filters": 32
-    },
-
-    {
-        "network": "unet3d_v2",
-        "dataset": "dataset_wu",
-        "img_size": null,
-        "lr": 0.001,
-        "loss": "focal",
         "batch_size": 2,
         "scheduler": "plateau",
         "dropout": 0.1,
