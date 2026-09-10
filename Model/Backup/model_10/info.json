@@ -5,12 +5,12 @@
         "scheduler": "plateau",
         "epochs": 100,
         "batch_size": 2,
-        "val_iou": 0.7250228524208069,
-        "test_iou": 0.7083449959754944
+        "val_iou": 0.7950465679168701,
+        "test_iou": 0.7726050019264221
     },
     "processing": {
-        "network": "resaceunet",
-        "dataset": "dataset_74_wu_mar",
+        "network": "unet3d_v2",
+        "dataset": "dataset_wu",
         "img_size": [
             128,
             128,
@@ -20,17 +20,17 @@
         "loss": "dice_focal",
         "batch_size": 2,
         "scheduler": "plateau",
-        "dropout": 0.1,
+        "dropout": 0.3,
         "num_filters": 32,
         "n_images": {
-            "total": 660,
-            "train": 600,
-            "val": 30,
-            "test": 30
+            "total": 220,
+            "train": 176,
+            "val": 22,
+            "test": 22
         }
     },
     "model": {
-        "network": "resaceunet",
+        "network": "unet3d_v2",
         "img_size": [
             128,
             128,
@@ -38,11 +38,11 @@
         ],
         "classes": 1,
         "channels": 1,
-        "dropout": 0.1,
+        "dropout": 0.3,
         "num_filters": 32,
         "lr": 0.001
     },
     "iou": {
-        "mean": 0.7083449959754944
+        "mean": 0.7726050019264221
     }
 }

@@ -8,6 +8,8 @@ from monai.networks.nets import SegResNet
 from .types.UNet3D import UNet3D
 from .types.Unet3D_V2 import Unet3D_V2
 from .types.resaceunet import ResACEUnet
+from .types.ResACEUnet_GRVA import ResACEUnet_GRVA
+from .types.MACNN import MACNN
 
 
 class ModelNetwork:
@@ -46,5 +48,11 @@ class ModelNetwork:
         
         if self.network == 'resaceunet':
             return ResACEUnet(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
-        
+
+        if self.network == 'resaceunet_grva':
+            return ResACEUnet_GRVA(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
+
+        if self.network == 'macnn':
+            return MACNN(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
+
         return None

@@ -5,28 +5,28 @@
         "scheduler": "plateau",
         "epochs": 100,
         "batch_size": 2,
-        "val_iou": 0.6478232741355896,
-        "test_iou": 0.5992804765701294
+        "val_iou": 0.755108654499054,
+        "test_iou": 0.734287679195404
     },
     "processing": {
         "network": "unet3d_v2",
-        "dataset": "dataset_wu_mar",
+        "dataset": "dataset_wu",
         "img_size": [
             128,
             128,
             128
         ],
-        "lr": 0.001,
+        "lr": 5e-05,
         "loss": "dice_focal",
         "batch_size": 2,
         "scheduler": "plateau",
         "dropout": 0.1,
         "num_filters": 32,
         "n_images": {
-            "total": 440,
-            "train": 400,
-            "val": 20,
-            "test": 20
+            "total": 220,
+            "train": 176,
+            "val": 22,
+            "test": 22
         }
     },
     "model": {
@@ -40,9 +40,9 @@
         "channels": 1,
         "dropout": 0.1,
         "num_filters": 32,
-        "lr": 0.001
+        "lr": 5e-05
     },
     "iou": {
-        "mean": 0.5992804765701294
+        "mean": 0.734287679195404
     }
 }

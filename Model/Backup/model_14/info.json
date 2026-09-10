@@ -1,0 +1,48 @@
+{
+    "trainer": {
+        "path": "model_14",
+        "loss": "dice_focal",
+        "scheduler": "plateau",
+        "epochs": 100,
+        "batch_size": 2,
+        "val_iou": 0.7641211152076721,
+        "test_iou": 0.7442007064819336
+    },
+    "processing": {
+        "network": "segresnet",
+        "dataset": "dataset_wu",
+        "img_size": [
+            128,
+            128,
+            128
+        ],
+        "lr": 0.001,
+        "loss": "dice_focal",
+        "batch_size": 2,
+        "scheduler": "plateau",
+        "dropout": 0.1,
+        "num_filters": 32,
+        "n_images": {
+            "total": 220,
+            "train": 176,
+            "val": 22,
+            "test": 22
+        }
+    },
+    "model": {
+        "network": "segresnet",
+        "img_size": [
+            128,
+            128,
+            128
+        ],
+        "classes": 1,
+        "channels": 1,
+        "dropout": 0.1,
+        "num_filters": 32,
+        "lr": 0.001
+    },
+    "iou": {
+        "mean": 0.7442007064819336
+    }
+}

@@ -1,13 +1,12 @@
 {
-    "title": "modelo unet tunada com dataset wu",
     "trainer": {
         "path": "model_2",
         "loss": "dice_focal",
         "scheduler": "plateau",
         "epochs": 100,
         "batch_size": 2,
-        "val_iou": 0.7796115279197693,
-        "test_iou": 0.7490510940551758
+        "val_iou": 0.7907100915908813,
+        "test_iou": 0.7675528526306152
     },
     "processing": {
         "network": "unet3d_v2",
@@ -17,7 +16,7 @@
             128,
             128
         ],
-        "lr": 0.001,
+        "lr": 0.0005,
         "loss": "dice_focal",
         "batch_size": 2,
         "scheduler": "plateau",
@@ -25,9 +24,9 @@
         "num_filters": 32,
         "n_images": {
             "total": 220,
-            "train": 200,
-            "val": 10,
-            "test": 10
+            "train": 176,
+            "val": 22,
+            "test": 22
         }
     },
     "model": {
@@ -41,9 +40,9 @@
         "channels": 1,
         "dropout": 0.1,
         "num_filters": 32,
-        "lr": 0.001
+        "lr": 0.0005
     },
     "iou": {
-        "mean": 0.7490510940551758
+        "mean": 0.7675528526306152
     }
 }

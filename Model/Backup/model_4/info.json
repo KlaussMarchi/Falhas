@@ -1,33 +1,32 @@
 {
-    "title": "modelo unet tunada com dataset grva (74% dados do wu) + wu + regiões de marlim",
     "trainer": {
         "path": "model_4",
         "loss": "dice_focal",
         "scheduler": "plateau",
         "epochs": 100,
         "batch_size": 2,
-        "val_iou": 0.7754247784614563,
-        "test_iou": 0.7208889722824097
+        "val_iou": 0.7793840169906616,
+        "test_iou": 0.7530203461647034
     },
     "processing": {
         "network": "unet3d_v2",
-        "dataset": "dataset_74_wu_mar",
+        "dataset": "dataset_wu",
         "img_size": [
             128,
             128,
             128
         ],
-        "lr": 0.001,
+        "lr": 0.0001,
         "loss": "dice_focal",
         "batch_size": 2,
         "scheduler": "plateau",
         "dropout": 0.1,
         "num_filters": 32,
         "n_images": {
-            "total": 660,
-            "train": 600,
-            "val": 30,
-            "test": 30
+            "total": 220,
+            "train": 176,
+            "val": 22,
+            "test": 22
         }
     },
     "model": {
@@ -41,9 +40,9 @@
         "channels": 1,
         "dropout": 0.1,
         "num_filters": 32,
-        "lr": 0.001
+        "lr": 0.0001
     },
     "iou": {
-        "mean": 0.7208889722824097
+        "mean": 0.7530203461647034
     }
 }

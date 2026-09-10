@@ -1,33 +1,32 @@
 {
-    "title": "modelo unet tunada com dataset grva (74%) + wu",
     "trainer": {
         "path": "model_3",
         "loss": "dice_focal",
         "scheduler": "plateau",
         "epochs": 100,
         "batch_size": 2,
-        "val_iou": 0.757732629776001,
-        "test_iou": 0.754849374294281
+        "val_iou": 0.7933350801467896,
+        "test_iou": 0.7736464738845825
     },
     "processing": {
         "network": "unet3d_v2",
-        "dataset": "dataset_74_wu",
+        "dataset": "dataset_wu",
         "img_size": [
             128,
             128,
             128
         ],
-        "lr": 0.001,
+        "lr": 0.005,
         "loss": "dice_focal",
         "batch_size": 2,
         "scheduler": "plateau",
         "dropout": 0.1,
         "num_filters": 32,
         "n_images": {
-            "total": 440,
-            "train": 400,
-            "val": 20,
-            "test": 20
+            "total": 220,
+            "train": 176,
+            "val": 22,
+            "test": 22
         }
     },
     "model": {
@@ -41,9 +40,9 @@
         "channels": 1,
         "dropout": 0.1,
         "num_filters": 32,
-        "lr": 0.001
+        "lr": 0.005
     },
     "iou": {
-        "mean": 0.754849374294281
+        "mean": 0.7736464738845825
     }
 }
