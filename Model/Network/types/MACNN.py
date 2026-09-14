@@ -12,12 +12,25 @@ def resample(x, size):
     return F.interpolate(x, size=tuple(size), mode='trilinear', align_corners=False)
 
 
-# CONV 3 + BN + ReLU: A UNIDADE BASICA DE TODO O MACNN (VERDE E AZUL DA FIGURA 3)
+# NORMALIZACAO: o artigo usa BatchNorm, mas ele treinou com lote efetivo 16 e aqui o lote e 2. Com lote 2 as
+# estatisticas moveis saem ruins e a rede fica pior em eval() do que em train() por motivo estatistico, nao
+# de generalizacao: medido ao longo de 10 epocas, o gap treino-validacao do MACNN com BN ficou em +0.031
+# (desvio 0.024) enquanto os quatro baselines do repo ficam entre -0.013 e -0.053 (desvio 0.007 a 0.013).
+# GroupNorm nao depende do lote e e o que as outras redes daqui ja usam. norm='batch' volta ao artigo
+def getNorm(channels, norm):
+    if norm == 'batch':
+        return nn.BatchNorm3d(channels)
+
+    groups = 8 if channels >= 8 and channels % 8 == 0 else 1
+    return nn.GroupNorm(num_groups=groups, num_channels=channels)
+
+
+# CONV 3 + NORMA + ReLU: A UNIDADE BASICA DE TODO O MACNN (VERDE E AZUL DA FIGURA 3)
 class ConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, dilation=1):
+    def __init__(self, in_channels, out_channels, dilation=1, norm='group'):
         super().__init__()
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=dilation, dilation=dilation, bias=False)
-        self.norm = nn.BatchNorm3d(out_channels)
+        self.norm = getNorm(out_channels, norm)
         self.act  = nn.ReLU(inplace=True)
 
     def forward(self, x):
@@ -30,11 +43,11 @@ class ConvBlock(nn.Module):
 # terceira conv"). A tupla (L1, L2, L3) da figura 1 e (entrada, largura do meio, saida): esta leitura
 # reproduz os totais publicados com quatro algarismos - 11,6990 M em 3D e 3,9011 M em 2D contra 11,7 e 3,9
 class TripleConv(nn.Module):
-    def __init__(self, in_channels, mid_channels, out_channels, dropout=0.0):
+    def __init__(self, in_channels, mid_channels, out_channels, dropout=0.0, norm='group'):
         super().__init__()
-        self.conv1 = ConvBlock(in_channels, mid_channels, dilation=1)
-        self.conv2 = ConvBlock(mid_channels, mid_channels, dilation=2)
-        self.conv3 = ConvBlock(mid_channels + in_channels, out_channels, dilation=1)
+        self.conv1 = ConvBlock(in_channels, mid_channels, dilation=1, norm=norm)
+        self.conv2 = ConvBlock(mid_channels, mid_channels, dilation=2, norm=norm)
+        self.conv3 = ConvBlock(mid_channels + in_channels, out_channels, dilation=1, norm=norm)
 
         # A SOMA DA PRIMEIRA CONV NA SAIDA SO PRECISA DE PROJECAO SE A LARGURA MUDAR (NUNCA MUDA NO ARTIGO)
         self.shortcut = nn.Identity() if mid_channels == out_channels else nn.Conv3d(mid_channels, out_channels, kernel_size=1, bias=False)
@@ -121,7 +134,8 @@ class MultiscaleAttention(nn.Module):
 class MACNN(nn.Module):
     POOL = 2
 
-    def __init__(self, in_channels=1, num_classes=1, base_filters=32, dropout_rate=0.0, input_shape=(128, 128, 128)):
+    def __init__(self, in_channels=1, num_classes=1, base_filters=32, dropout_rate=0.0,
+                 input_shape=(128, 128, 128), norm='group'):
         super().__init__()
         self.input_shape = tuple(int(size) for size in input_shape)
 
@@ -132,21 +146,21 @@ class MACNN(nn.Module):
 
         self.size_multiple = tuple(self.POOL ** len(widths) for _ in range(3))
 
-        self.encoder1 = TripleConv(in_channels, widths[0], widths[0], dropout=drop)
-        self.encoder2 = TripleConv(widths[0], widths[1], widths[1], dropout=drop)
-        self.encoder3 = TripleConv(widths[1], widths[2], widths[2], dropout=drop)
-        self.link     = TripleConv(widths[2], bottom, bottom, dropout=drop)
+        self.encoder1 = TripleConv(in_channels, widths[0], widths[0], dropout=drop, norm=norm)
+        self.encoder2 = TripleConv(widths[0], widths[1], widths[1], dropout=drop, norm=norm)
+        self.encoder3 = TripleConv(widths[1], widths[2], widths[2], dropout=drop, norm=norm)
+        self.link     = TripleConv(widths[2], bottom, bottom, dropout=drop, norm=norm)
 
         self.pool = nn.MaxPool3d(kernel_size=self.POOL, stride=self.POOL)
 
         # UM BLOCO DE ATENCAO POR NIVEL, TODOS ALIMENTADOS PELOS TRES ENCODERS
         self.attentions = nn.ModuleList([MultiscaleAttention(widths, channels, channels) for channels in widths])
 
-        self.decoder3 = TripleConv(bottom + widths[2], widths[2], widths[2], dropout=drop)
-        self.decoder2 = TripleConv(widths[2] + widths[1], widths[1], widths[1], dropout=drop)
-        self.decoder1 = TripleConv(widths[1] + widths[0], widths[0], widths[0], dropout=drop)
+        self.decoder3 = TripleConv(bottom + widths[2], widths[2], widths[2], dropout=drop, norm=norm)
+        self.decoder2 = TripleConv(widths[2] + widths[1], widths[1], widths[1], dropout=drop, norm=norm)
+        self.decoder1 = TripleConv(widths[1] + widths[0], widths[0], widths[0], dropout=drop, norm=norm)
 
-        self.head = ConvBlock(widths[0], widths[0], dilation=1)
+        self.head = ConvBlock(widths[0], widths[0], dilation=1, norm=norm)
         self.out  = nn.Conv3d(widths[0], num_classes, kernel_size=1)
 
     # DECODER: SOBE POR INTERPOLACAO TRILINEAR E CONCATENA O ENCODER JA REFINADO PELA ATENCAO

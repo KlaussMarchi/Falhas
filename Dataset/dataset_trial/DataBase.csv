@@ -1,0 +1,9 @@
+id,img_min,img_max,img_mean,img_std,msk_min,msk_max,shape,img_path,mask_path
+img_0000.npy,0.0,1.0,0.4924586,0.211216,0,1,"(128, 128, 128)",/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/images/img_0000.npy,/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/masks/img_0000.npy
+img_0001.npy,0.0,1.0,0.4933974,0.20949918,0,1,"(128, 128, 128)",/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/images/img_0001.npy,/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/masks/img_0001.npy
+img_0002.npy,0.0,1.0,0.49165758,0.20774707,0,1,"(128, 128, 128)",/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/images/img_0002.npy,/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/masks/img_0002.npy
+img_0003.npy,0.0,1.0,0.49358964,0.20934604,0,1,"(128, 128, 128)",/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/images/img_0003.npy,/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/masks/img_0003.npy
+img_0004.npy,0.0,1.0,0.491638,0.20990077,0,1,"(128, 128, 128)",/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/images/img_0004.npy,/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/masks/img_0004.npy
+img_0005.npy,0.0,1.0,0.49176362,0.2113072,0,1,"(128, 128, 128)",/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/images/img_0005.npy,/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/masks/img_0005.npy
+img_0006.npy,0.0,1.0,0.49233437,0.21052465,0,1,"(128, 128, 128)",/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/images/img_0006.npy,/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/masks/img_0006.npy
+img_0007.npy,0.0,1.0,0.49206758,0.21232045,0,1,"(128, 128, 128)",/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/images/img_0007.npy,/home/grva-mint/Projects/Falhas/Dataset/dataset_trial/masks/img_0007.npy

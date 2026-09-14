@@ -1,7 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 import scipy.ndimage as ndimage
-import os, json
+import os, json, copy, shutil
 
 
 def seed_everything(seed=42):
@@ -18,42 +18,43 @@ class SyntheticGenerator:
         self.finalShape = shape           # (nx, ny, nz) final output volume size
 
         # ── Refletividade (Estratigrafia) ────────────────────────────
-        self.layerRange = (100, 230)      # Qtd de camadas. ↑ Imagem cheia de linhas finas. ↓ Blocos grossos e lisos.
-        self.layerThickness = (1, 2)      # Espessura. ↑ Camadas mais grossas. ↓ Camadas bem fininhas.
+        self.layerRange = (26, 233)       # Qtd de camadas. ↑ Imagem cheia de linhas finas. ↓ Blocos grossos e lisos.
+        self.layerThickness = (1, 4)      # Espessura. ↑ Camadas mais grossas. ↓ Camadas bem fininhas.
 
         # ── Dobramentos (Folding) ────────────────────────────────────
-        self.foldCount = (15, 30)         # Qtd de dobras. ↑ Imagem muito ondulada. ↓ Terreno plano.
-        self.foldSigma = (8, 44)          # Largura da dobra. ↑ Dobras largas e suaves. ↓ Dobras curtas e apertadas.
-        self.foldAmplitude = (-17, 17)    # Altura da dobra. ↑ Picos e vales extremos. ↓ Dobras rasas.
-        self.foldDamping   = 1.5          # Perda de força. ↑ A dobra some rápido no fundo. ↓ A dobra desce até a base.
-        self.foldBaseShift = (-1.6, 1.6)  # Posição Z. ↑/↓ Sobe ou desce o desenho inteiro na imagem.
+        self.foldCount = (15, 48)         # Qtd de dobras. ↑ Imagem muito ondulada. ↓ Terreno plano.
+        self.foldSigma = (17, 57)         # Largura da dobra. ↑ Dobras largas e suaves. ↓ Dobras curtas e apertadas.
+        self.foldAmplitude = (-35, 5)     # Altura da dobra. ↑ Picos e vales extremos. ↓ Dobras rasas.
+        self.foldDamping   = 1.35         # Perda de força. ↑ A dobra some rápido no fundo. ↓ A dobra desce até a base.
+        self.foldBaseShift = (-0.75, 4.45)# Posição Z. ↑/↓ Sobe ou desce o desenho inteiro na imagem.
 
         # ── Cisalhamento / Inclinação (Shearing) ─────────────────────
-        self.shearOffset   = (-2.8, 2.8)  # Deslocamento lateral. ↑/↓ Empurra todo o bloco para o lado.
-        self.shearGradient = (-0.1, 0.1)  # Inclinação (Mergulho). ↑ Camadas ficam na diagonal. ↓ Ficam na horizontal.
+        self.shearOffset   = (-8.68, 3.3) # Deslocamento lateral. ↑/↓ Empurra todo o bloco para o lado.
+        self.shearGradient = (-0.1, 0.02) # Inclinação (Mergulho). ↑ Camadas ficam na diagonal. ↓ Ficam na horizontal.
 
         # ── Falhas (Faulting) ────────────────────────────────────────
-        self.faultCount = (4, 7)          # Qtd de falhas. ↑ Imagem toda fraturada. ↓ Imagem mais inteira.
-        self.faultThrow = (0, 22)         # Tamanho do degrau. ↑ Desencontro gigante nas linhas. ↓ Quebra quase invisível.
-        self.faultDipAngle = (20, 75)     # Ângulo. ↑ Falha quase em pé (vertical). ↓ Falha deitada.
-        
-        self.faultRoughness  = 3.3        # Textura do corte. ↑ Corte tremido/áspero. ↓ Corte liso como navalha.
-        self.faultRoughSigma = 4.5        # Tamanho da tremedeira. ↑ Ondas grandes na falha. ↓ Ondinhas curtas.
-        self.faultDecaySigma = (33, 83)   # Arrasto. ↑ A linha entorta muito antes de quebrar. ↓ Quebra seca.
+        self.faultCount = (5, 10)         # Qtd de falhas. ↑ Imagem toda fraturada. ↓ Imagem mais inteira.
+        self.faultThrow = (15, 32)        # Tamanho do degrau. ↑ Desencontro gigante nas linhas. ↓ Quebra quase invisível.
+        self.faultDipAngle = (55, 81)     # Ângulo. ↑ Falha quase em pé (vertical). ↓ Falha deitada.
 
-        self.faultZoneWidth  = 1.2        # Espessura do rótulo. ↑ A máscara da falha fica grossa. ↓ Fica fina.
-        self.faultThreshold  = 0.8        # Filtro de rótulo. ↑ Marca só falha grande. ↓ Marca qualquer rachadurazinha.
+        self.faultRoughness  = 3.54       # Textura do corte. ↑ Corte tremido/áspero. ↓ Corte liso como navalha.
+        self.faultRoughSigma = 8.55       # Tamanho da tremedeira. ↑ Ondas grandes na falha. ↓ Ondinhas curtas.
+        self.faultDecaySigma = (49, 59)   # Arrasto. ↑ A linha entorta muito antes de quebrar. ↓ Quebra seca.
 
-        self.faultCurveProb  = 0.30       # Chance de curvar. ↑ Falha faz formato de colher (lístrica). ↓ Falha reta.
-        self.faultCurveMax   = 6.7        # Força da curva. ↑ Curva muito fechada. ↓ Curva leve.
+        self.faultZoneWidth  = 0.99       # Espessura do rótulo. ↑ A máscara da falha fica grossa. ↓ Fica fina.
+        self.faultThreshold  = 0.77       # Filtro de rótulo. ↑ Marca só falha grande. ↓ Marca qualquer rachadurazinha.
+
+        self.faultCurveProb  = 0.07       # Chance de curvar. ↑ Falha faz formato de colher (lístrica). ↓ Falha reta.
+        self.faultCurveMax   = 8.44       # Força da curva. ↑ Curva muito fechada. ↓ Curva leve.
 
         # ── Assinatura Sísmica (Wavelet) ─────────────────────────────
-        self.waveletFreq = (81, 117)      # Resolução. ↑ Imagem super nítida. ↓ Imagem borrada e grossa.
-        self.waveletDuration = 0.08       # "Eco" do sinal. ↑ O traço borra verticalmente. ↓ Sinal limpo e curto.
-        self.waveletDt = 0.002            # Amostragem. ↑ Imagem pode ficar pixelada/serrilhada. ↓ Imagem contínua.
+        self.waveletFreq = (72, 99)       # Resolução. ↑ Imagem super nítida. ↓ Imagem borrada e grossa.
+        self.waveletDuration = 0.1        # "Eco" do sinal. ↑ O traço borra verticalmente. ↓ Sinal limpo e curto.
+        self.waveletDt = 0.0012           # Amostragem. ↑ Imagem pode ficar pixelada/serrilhada. ↓ Imagem contínua.
 
         # ── Ruído Final (Noise) ──────────────────────────────────────
-        self.noiseLevel = (0.00, 0.10)    # Chuvisco. ↑ Imagem cheia de ruído (ruim). ↓ Imagem limpa (perfeita).
+        self.noiseLevel = (0.015, 0.618)  # Chuvisco. ↑ Imagem cheia de ruído (ruim). ↓ Imagem limpa (perfeita).
+        self.noiseSigma = (1.0, 1.0, 0.5) # Grão do chuvisco (x, y, z). ↑ Ruído liso e manchado. ↓ Ruído fino e pontilhado.
 
         self.nx = self.finalShape[0] + 2 * self.margin
         self.ny = self.finalShape[1] + 2 * self.margin
@@ -113,26 +114,49 @@ class SyntheticGenerator:
         np.save(os.path.join(imgDir, f"img_{i:04d}.npy"), image)
         np.save(os.path.join(mskDir, f"img_{i:04d}.npy"), mask)
 
-    def dataset(self, n=200, outputDir="output", n_jobs=None):
-        from Utils.index import setFolder
+    def dataset(self, options, n_jobs=None):
         import concurrent.futures
         import multiprocessing
-        import os
-        from tqdm import tqdm
 
-        imgDir = os.path.join(outputDir, "images")
-        mskDir = os.path.join(outputDir, "masks")
-        setFolder(imgDir)
-        setFolder(mskDir)
+        extra = set(options) - {"directory", "regions"}
+        if extra:
+            raise ValueError(f"chaves desconhecidas em options: {sorted(extra)}")
+
+        directory = options.get("directory", "output")
+        regions = options["regions"]
+        folders = {name: os.path.join(directory, cfg.get("output", name)) for name, cfg in regions.items()}
+
+        if len(set(folders.values())) < len(folders):
+            raise ValueError(f"duas regiões gravam na mesma pasta: {folders}")
+
+        for name, cfg in regions.items():
+            extra = set(cfg) - {"n_images", "output", "params"}
+            unknown = set(cfg.get("params", {})) - set(vars(self))
+            if extra or unknown:
+                raise ValueError(f"'{name}': chaves desconhecidas {sorted(extra)}, parâmetros desconhecidos {sorted(unknown)}")
 
         if n_jobs is None:
             n_jobs = multiprocessing.cpu_count()
 
         base_seed = np.random.randint(0, 1000000)
-        tasks = [(i, imgDir, mskDir, base_seed + i) for i in range(n)]
+        offset = 0
 
         with concurrent.futures.ProcessPoolExecutor(max_workers=n_jobs) as executor:
-            list(tqdm(executor.map(self._generate_single, tasks), total=n, desc="Generating dataset"))
+            for name, cfg in regions.items():
+                n = cfg.get("n_images", 200)
+                folder = folders[name]
+                imgDir, mskDir = os.path.join(folder, "images"), os.path.join(folder, "masks")
+
+                shutil.rmtree(folder, ignore_errors=True)
+                os.makedirs(imgDir)
+                os.makedirs(mskDir)
+
+                gen = copy.deepcopy(self)
+                gen.set(cfg.get("params", {}))
+
+                tasks = [(i, imgDir, mskDir, base_seed + offset + i) for i in range(n)]
+                list(tqdm(executor.map(gen._generate_single, tasks), total=n, desc=name))
+                offset += n
 
     def genReflectivity(self):
         r1d = np.zeros(self.nz, dtype=np.float64)
@@ -318,7 +342,7 @@ class SyntheticGenerator:
         """Add band-limited Gaussian noise scaled to signal amplitude."""
         scale = np.random.uniform(*self.noiseLevel) * np.std(image)
         noise = np.random.normal(0.0, 1.0, image.shape)
-        noise = ndimage.gaussian_filter(noise, sigma=(1.0, 1.0, 0.5))
+        noise = ndimage.gaussian_filter(noise, sigma=self.noiseSigma)
         noise *= (scale / (np.std(noise) + 1e-8))
 
         image += noise                                  # in-place (saves one full allocation)
@@ -358,7 +382,8 @@ class SyntheticGenerator:
             "waveletFreq": self.waveletFreq,
             "waveletDuration": self.waveletDuration,
             "waveletDt": self.waveletDt,
-            "noiseLevel": self.noiseLevel
+            "noiseLevel": self.noiseLevel,
+            "noiseSigma": self.noiseSigma
         }
 
     def print(self):

@@ -1,0 +1,14 @@
+eu tinha pedido para voce gerar datasets similares a cada região de marlim com o algoritmo genetico para otimização
+dos parametros da classe synthetic generator em Marlim/Regions e o codigo de ANalysis.ipynb estava muito sujo e confuso cheio de quebra e tambem rodando mal, criei um 
+arquivo CODE_STYLE.md para voce ver as melhores abordagens de codigo, e refiz parcialmente o AnalysisBetter.ipynb com a estrutura que eu quero limpa e orgainizada que 
+voce vai preencher só com o necessário para conseguir de fato alcançar o objetivo de comparar a imagem sintetica com a imagem real e mostrar um feedback visual na 
+estrutura que eu ja te dei no .ipynb novo e a ideia é ir preenchendo e testando até o codigo funcionar. e tomar cuidado com uma coisa: eu tentei rodar agora com uma
+população mais alta e com gerações de 100 e o programa crashou e o PC desligou provavelmente por conta de muito processamento, voce tem que ver isso e permitir
+rodar o jupyter de forma extensiva sem acabar com minha memoria e processamento para eu conseguir de fato explorar o espaço de busca e fazer o algoritmo genetico
+convergir para encontrar os mlehores parametros possiveis pra minha aplicação, então vão ser varias validações e testes e alterações que vai ter que fazer
+mas garantindo ao final um codigo robusto, otimizado, limpo e na estrutura nova que montei e mAnalysisBetter.ipynb e ao rodar ver se ta funcionando e com bons
+resultados que o objetivo é esse e sem fritar o meu PC. e ao final quando gerar as 660 imagens em Dataset/dataset_regions/original ver se o Format.ipynb vai conseguir formatar
+elas bem no mesmo estilo que nos outros datasets para permitir rodar legal. tambem quero que corrija o SyntheticGenerator da classe de gerar os dados sinteticos (sem interferir ou piorar suas funcionalidades)
+que tao em Synthetic/index.py e se adaptar para a funcao dataset com os novos parametros que preciso na estrutura de json e organizado agora igual CODE_STYLE.md tambem com codigo limpo
+. se tiver alguma duvida pode me perguntar pra entender melhor, e no final revise bem tudo e faça testes e simulações para ter certeza de que me entregou tudo certinho
+e organizado e limpo e robusto e testado devidamente

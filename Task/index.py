@@ -32,8 +32,16 @@ for i, task in enumerate(tasks):
         info = json.load(file)
     
     print('info: ', info)
-    dataset = info.get('dataset')
+    dataset  = info.get('dataset')
+    database = f"../Dataset/{dataset}/DataBase.csv"
     print(dataset)
 
-    execute(f"../Dataset/{dataset}/Format.ipynb")
+    # O Format SO PRECISA RODAR SE O DataBase.csv DO DATASET AINDA NAO EXISTE OU SE A RODADA PEDE TILES,
+    # que reescrevem a pasta tiles/ e o CSV a cada vez. Fora isso o CSV ja tem os caminhos e o Format
+    # so gastaria tempo reescrevendo os mesmos .npy
+    if os.path.exists(database) and info.get('img_size') is None:
+        print(f'Format pulado: {database} ja existe')
+    else:
+        execute(f"../Dataset/{dataset}/Format.ipynb")
+
     execute("../Model/Analysis.ipynb")
