@@ -99,6 +99,22 @@ class SmoothDiceLoss(nn.Module):
             return 1.0 - (2.0 * overlap + self.SMOOTH) / (volume + self.SMOOTH)
 
 
+# PERDA COMPOSTA DA FAULT-SEG-NET (LI ET AL., 2023, EQ. 11): L = mu*Dice + (1-mu)*Focal, com mu = 0.3.
+# O Dice e o global suavizado da eq. 10, que ja esta aqui, e o Focal e o da eq. 9 - sem alpha, porque o
+# artigo nao pondera classe: quem cuida do desbalanceamento e o termo Dice. Nao da para usar dice_focal no
+# lugar: o DiceFocalLoss do MONAI soma os dois com peso 1:1 e nao expoe mu
+class CompoundLoss(nn.Module):
+    MU = 0.3
+
+    def __init__(self, multiclass=False, gamma=2.0):
+        super().__init__()
+        self.dice  = SmoothDiceLoss(multiclass=multiclass)
+        self.focal = FocalLoss(multiclass=multiclass, gamma=gamma, alpha=None)
+
+    def forward(self, logits, target):
+        return self.MU * self.dice(logits, target) + (1.0 - self.MU) * self.focal(logits, target)
+
+
 class Losses:
     FOCAL_ALPHA = 0.93
 
@@ -107,6 +123,7 @@ class Losses:
         'dice_focal': DiceFocalLoss,
         'focal': FocalLoss,
         'smooth_dice': SmoothDiceLoss,
+        'compound': CompoundLoss,
     }
 
     def __new__(cls, name, multiclass=False):

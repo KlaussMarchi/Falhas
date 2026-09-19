@@ -10,6 +10,7 @@ from .types.Unet3D_V2 import Unet3D_V2
 from .types.resaceunet import ResACEUnet
 from .types.ResACEUnet_GRVA import ResACEUnet_GRVA
 from .types.MACNN import MACNN
+from .types.FaultSegNet import FaultSegNet
 
 
 class ModelNetwork:
@@ -54,5 +55,8 @@ class ModelNetwork:
 
         if self.network == 'macnn':
             return MACNN(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
+
+        if self.network == 'fault_seg_net':
+            return FaultSegNet(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
 
         return None

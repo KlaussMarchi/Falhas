@@ -1,0 +1,17 @@
+{
+    "model": "model_23",
+    "patch": "1200",
+    "tiles": 910,
+    "tile_shape": [
+        128,
+        128,
+        128
+    ],
+    "img_size": [
+        128,
+        128,
+        128
+    ],
+    "overlap": 0.25,
+    "windows_per_tile": 1
+}

@@ -1,390 +1,279 @@
 import numpy as np
-from tqdm import tqdm
 import scipy.ndimage as ndimage
 import os, json, copy, shutil
+from concurrent.futures import ProcessPoolExecutor
+from tqdm import tqdm
 
 
-def seed_everything(seed=42):
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    np.random.seed(seed)
-    np.random.default_rng(seed=seed)
-    print('random seed done')
-
-
+# VOLUME SÍSMICO SINTÉTICO COM A MÁSCARA DAS FALHAS, MONTADO NUM CUBO COM MARGEM E CORTADO NO FIM
 class SyntheticGenerator:
+    PAD  = 12       # PREENCHIMENTO QUE O map_coordinates FAZ NO MODO 'nearest'
+    TAIL = 1e-30    # TAP DA WAVELET ABAIXO DESTA FRAÇÃO DO PICO NÃO MUDA A SOMA EM float64
+    NICE = 10       # PRIORIDADE DOS PROCESSOS DO dataset(), PARA A MÁQUINA SEGUIR USÁVEL
+
     def __init__(self, shape=(128, 128, 128), seed=None):
-        # ── Image Format ─────────────────────────────────────────────
-        self.margin = 64                  # Buffer para absorver dobras extremas nas bordas com segurança
-        self.finalShape = shape           # (nx, ny, nz) final output volume size
+        self.margin     = 64                  # BORDA QUE ABSORVE DOBRA E REJEITO ANTES DO CORTE
+        self.finalShape = shape
 
-        # ── Refletividade (Estratigrafia) ────────────────────────────
-        self.layerRange = (26, 233)       # Qtd de camadas. ↑ Imagem cheia de linhas finas. ↓ Blocos grossos e lisos.
-        self.layerThickness = (1, 4)      # Espessura. ↑ Camadas mais grossas. ↓ Camadas bem fininhas.
+        self.layerRange     = (26, 233)       # CAMADAS NA COLUNA
+        self.layerThickness = (1, 4)          # ESPESSURA DA CAMADA EM VOXELS
 
-        # ── Dobramentos (Folding) ────────────────────────────────────
-        self.foldCount = (15, 48)         # Qtd de dobras. ↑ Imagem muito ondulada. ↓ Terreno plano.
-        self.foldSigma = (17, 57)         # Largura da dobra. ↑ Dobras largas e suaves. ↓ Dobras curtas e apertadas.
-        self.foldAmplitude = (-35, 5)     # Altura da dobra. ↑ Picos e vales extremos. ↓ Dobras rasas.
-        self.foldDamping   = 1.35         # Perda de força. ↑ A dobra some rápido no fundo. ↓ A dobra desce até a base.
-        self.foldBaseShift = (-0.75, 4.45)# Posição Z. ↑/↓ Sobe ou desce o desenho inteiro na imagem.
+        self.foldCount     = (15, 48)         # GAUSSIANAS DE DOBRA
+        self.foldSigma     = (17, 57)         # LARGURA DA DOBRA
+        self.foldAspect    = 1.0              # ALONGAMENTO DA DOBRA EM x: ABAIXO DE 1 A DOBRA SE ESTENDE MAIS NO EIXO x
+        self.foldAmplitude = (-35, 5)         # ALTURA DA DOBRA
+        self.foldDamping   = 1.35             # QUANTO A DOBRA CRESCE COM A PROFUNDIDADE
+        self.foldBaseShift = (-0.75, 4.45)    # DESLOCAMENTO VERTICAL DO BLOCO INTEIRO
 
-        # ── Cisalhamento / Inclinação (Shearing) ─────────────────────
-        self.shearOffset   = (-8.68, 3.3) # Deslocamento lateral. ↑/↓ Empurra todo o bloco para o lado.
-        self.shearGradient = (-0.1, 0.02) # Inclinação (Mergulho). ↑ Camadas ficam na diagonal. ↓ Ficam na horizontal.
+        self.shearOffset   = (-8.68, 3.3)     # DESLOCAMENTO VERTICAL CONSTANTE
+        self.shearGradient = (-0.1, 0.02)     # MERGULHO REGIONAL DAS CAMADAS
 
-        # ── Falhas (Faulting) ────────────────────────────────────────
-        self.faultCount = (5, 10)         # Qtd de falhas. ↑ Imagem toda fraturada. ↓ Imagem mais inteira.
-        self.faultThrow = (15, 32)        # Tamanho do degrau. ↑ Desencontro gigante nas linhas. ↓ Quebra quase invisível.
-        self.faultDipAngle = (55, 81)     # Ângulo. ↑ Falha quase em pé (vertical). ↓ Falha deitada.
+        self.faultCount      = (5, 10)        # FALHAS POR TILE, TETO EXCLUSIVO
+        self.faultThrow      = (15, 32)       # REJEITO MÁXIMO EM VOXELS
+        self.faultDipAngle   = (55, 81)       # MERGULHO DO PLANO EM GRAUS
+        self.faultRoughness  = 3.54           # AMPLITUDE DA RUGOSIDADE DO PLANO
+        self.faultRoughSigma = 8.55           # COMPRIMENTO DE ONDA DA RUGOSIDADE
+        self.faultDecaySigma = (49, 59)       # ALCANCE DO REJEITO GAUSSIANO
+        self.faultZoneWidth  = 0.99           # MEIA-ESPESSURA DO RÓTULO
+        self.faultThreshold  = 0.77           # REJEITO MÍNIMO PARA ROTULAR
+        self.faultCurveProb  = 0.07           # CHANCE DE A FALHA SER LÍSTRICA
+        self.faultCurveMax   = 8.44           # CURVATURA MÁXIMA DA LÍSTRICA
 
-        self.faultRoughness  = 3.54       # Textura do corte. ↑ Corte tremido/áspero. ↓ Corte liso como navalha.
-        self.faultRoughSigma = 8.55       # Tamanho da tremedeira. ↑ Ondas grandes na falha. ↓ Ondinhas curtas.
-        self.faultDecaySigma = (49, 59)   # Arrasto. ↑ A linha entorta muito antes de quebrar. ↓ Quebra seca.
+        self.waveletFreq     = (72, 99)       # FREQUÊNCIA DO RICKER
+        self.waveletDuration = 0.1            # MEIA-DURAÇÃO DO KERNEL EM SEGUNDOS
+        self.waveletDt       = 0.0012         # AMOSTRAGEM DO KERNEL
 
-        self.faultZoneWidth  = 0.99       # Espessura do rótulo. ↑ A máscara da falha fica grossa. ↓ Fica fina.
-        self.faultThreshold  = 0.77       # Filtro de rótulo. ↑ Marca só falha grande. ↓ Marca qualquer rachadurazinha.
+        self.noiseLevel = (0.015, 0.618)      # RUÍDO EM FRAÇÃO DO DESVIO DO SINAL
+        self.noiseSigma = (1.0, 1.0, 0.5)     # GRÃO DO RUÍDO EM (x, y, z)
 
-        self.faultCurveProb  = 0.07       # Chance de curvar. ↑ Falha faz formato de colher (lístrica). ↓ Falha reta.
-        self.faultCurveMax   = 8.44       # Força da curva. ↑ Curva muito fechada. ↓ Curva leve.
+        self.gain       = None                # GANHO DO TILE Z-SCORADO; None GRAVA O TILE COMO SAI DO get()
+        self.gainJitter = 0.0                 # DESVIO DO LOG-GANHO ENTRE TILES DO MESMO LOTE
+        self.clip       = None                # SATURAÇÃO SIMÉTRICA DEPOIS DO GANHO
 
-        # ── Assinatura Sísmica (Wavelet) ─────────────────────────────
-        self.waveletFreq = (72, 99)       # Resolução. ↑ Imagem super nítida. ↓ Imagem borrada e grossa.
-        self.waveletDuration = 0.1        # "Eco" do sinal. ↑ O traço borra verticalmente. ↓ Sinal limpo e curto.
-        self.waveletDt = 0.0012           # Amostragem. ↑ Imagem pode ficar pixelada/serrilhada. ↓ Imagem contínua.
-
-        # ── Ruído Final (Noise) ──────────────────────────────────────
-        self.noiseLevel = (0.015, 0.618)  # Chuvisco. ↑ Imagem cheia de ruído (ruim). ↓ Imagem limpa (perfeita).
-        self.noiseSigma = (1.0, 1.0, 0.5) # Grão do chuvisco (x, y, z). ↑ Ruído liso e manchado. ↓ Ruído fino e pontilhado.
-
-        self.nx = self.finalShape[0] + 2 * self.margin
-        self.ny = self.finalShape[1] + 2 * self.margin
-        self.nz = self.finalShape[2] + 2 * self.margin
+        self.nx    = self.finalShape[0] + 2 * self.margin
+        self.ny    = self.finalShape[1] + 2 * self.margin
+        self.nz    = self.finalShape[2] + 2 * self.margin
         self.shape = (self.nx, self.ny, self.nz)
-        self._ix = None
-        self._iy = None
-        self._iz = None
 
-        if seed:
-            seed_everything(seed)
-
-    def _get_indices(self):
-        if self._ix is None:
-            self._ix, self._iy, self._iz = np.indices(self.shape, dtype=np.int32)
-        return self._ix, self._iy, self._iz
-
-    def _clear_indices(self):
-        self._ix = None
-        self._iy = None
-        self._iz = None
+        if seed is not None:
+            np.random.seed(seed)
 
     def get(self):
-        self._clear_indices()
-
-        r1d = self.genReflectivity()                # 1D — no 3D tile
-        folded = self.applyFolding(r1d)             # samples 1D r1d directly
-        del r1d
-        sheared = self.applyShearing(folded)
-        del folded
-        faulted, mask = self.applyFaulting(sheared)
-        del sheared
-        image = self.applyWavelet(faulted)
-        del faulted
-        image = self.applyNoise(image)
-
-        self._clear_indices()
-
-        image = self.crop(image)
-        mask  = self.crop(mask)
-        image = (image - np.mean(image)) / (np.std(image) + 1e-8)
-        return image.astype(np.float32), mask.astype(np.uint8)
+        model, mask = self.applyFaulting(self.applyShearing(self.applyFolding(self.genReflectivity())))
+        image       = self.crop(self.applyNoise(self.applyWavelet(model)))
+        image       = (image - np.mean(image)) / (np.std(image) + 1e-8)
+        return image.astype(np.float32), self.crop(mask).astype(np.uint8)
 
     def set(self, options):
-        for k, v in options.items():
-            setattr(self, k, v)
-
-    def _generate_single(self, args):
-        import numpy as np
-        import os
-
-        i, imgDir, mskDir, seed = args
-        np.random.seed(seed)
-        image, mask = self.get()
-        image, mask = np.transpose(image, (0, 2, 1)), np.transpose(mask, (0, 2, 1))
-
-        np.save(os.path.join(imgDir, f"img_{i:04d}.npy"), image)
-        np.save(os.path.join(mskDir, f"img_{i:04d}.npy"), mask)
-
-    def dataset(self, options, n_jobs=None):
-        import concurrent.futures
-        import multiprocessing
-
-        extra = set(options) - {"directory", "regions"}
-        if extra:
-            raise ValueError(f"chaves desconhecidas em options: {sorted(extra)}")
-
-        directory = options.get("directory", "output")
-        regions = options["regions"]
-        folders = {name: os.path.join(directory, cfg.get("output", name)) for name, cfg in regions.items()}
-
-        if len(set(folders.values())) < len(folders):
-            raise ValueError(f"duas regiões gravam na mesma pasta: {folders}")
-
-        for name, cfg in regions.items():
-            extra = set(cfg) - {"n_images", "output", "params"}
-            unknown = set(cfg.get("params", {})) - set(vars(self))
-            if extra or unknown:
-                raise ValueError(f"'{name}': chaves desconhecidas {sorted(extra)}, parâmetros desconhecidos {sorted(unknown)}")
-
-        if n_jobs is None:
-            n_jobs = multiprocessing.cpu_count()
-
-        base_seed = np.random.randint(0, 1000000)
-        offset = 0
-
-        with concurrent.futures.ProcessPoolExecutor(max_workers=n_jobs) as executor:
-            for name, cfg in regions.items():
-                n = cfg.get("n_images", 200)
-                folder = folders[name]
-                imgDir, mskDir = os.path.join(folder, "images"), os.path.join(folder, "masks")
-
-                shutil.rmtree(folder, ignore_errors=True)
-                os.makedirs(imgDir)
-                os.makedirs(mskDir)
-
-                gen = copy.deepcopy(self)
-                gen.set(cfg.get("params", {}))
-
-                tasks = [(i, imgDir, mskDir, base_seed + offset + i) for i in range(n)]
-                list(tqdm(executor.map(gen._generate_single, tasks), total=n, desc=name))
-                offset += n
+        for key, value in options.items():
+            setattr(self, key, value)
 
     def genReflectivity(self):
-        r1d = np.zeros(self.nz, dtype=np.float64)
-        nLayers = np.random.randint(*self.layerRange)
+        reflectivity = np.zeros(self.nz, dtype=np.float64)
 
-        for _ in range(nLayers):
-            pos = np.random.randint(0, self.nz)
+        for _ in range(np.random.randint(*self.layerRange)):
+            pos       = np.random.randint(0, self.nz)
             thickness = np.random.randint(*self.layerThickness)
-            r1d[pos : pos + thickness] = np.random.uniform(-1, 1)
+            reflectivity[pos:pos + thickness] = np.random.uniform(-1, 1)
 
-        return r1d
+        return reflectivity
 
-    def applyFolding(self, r1d):
-        x = np.arange(self.nx)
-        y = np.arange(self.ny)
-        xx, yy = np.meshgrid(x, y, indexing="ij")
+    def applyFolding(self, reflectivity):
+        xx, yy = np.meshgrid(np.arange(self.nx), np.arange(self.ny), indexing='ij')
+        a0     = np.random.uniform(*self.foldBaseShift)
+        shift  = np.zeros((self.nx, self.ny), dtype=np.float64)
 
-        a0 = np.random.uniform(*self.foldBaseShift)
-        nGaussians = np.random.randint(*self.foldCount)
-        shift2d = np.zeros((self.nx, self.ny), dtype=np.float64)
-
-        for _ in range(nGaussians):
-            x0 = np.random.uniform(-self.nx * 0.3, self.nx * 1.3)
-            y0 = np.random.uniform(-self.ny * 0.3, self.ny * 1.3)
+        for _ in range(np.random.randint(*self.foldCount)):
+            x0     = np.random.uniform(-self.nx * 0.3, self.nx * 1.3)
+            y0     = np.random.uniform(-self.ny * 0.3, self.ny * 1.3)
             sigmaX = np.random.uniform(*self.foldSigma)
             sigmaY = np.random.uniform(*self.foldSigma)
             theta  = np.random.uniform(0, np.pi)
-            amp = np.random.uniform(*self.foldAmplitude)
+            amp    = np.random.uniform(*self.foldAmplitude)
+            dx, dy = (xx - x0) * self.foldAspect, yy - y0
+            u      = np.cos(theta) * dx + np.sin(theta) * dy
+            v      = -np.sin(theta) * dx + np.cos(theta) * dy
+            shift += amp * np.exp(-(u ** 2 / (2 * sigmaX ** 2) + v ** 2 / (2 * sigmaY ** 2)))
 
-            dx = xx - x0
-            dy = yy - y0
-            cosT, sinT = np.cos(theta), np.sin(theta)
-            u = cosT * dx + sinT * dy
-            v = -sinT * dx + cosT * dy
-            shift2d += amp * np.exp(-(u**2 / (2 * sigmaX**2) + v**2 / (2 * sigmaY**2)))
-
-        zGrid = np.arange(self.nz, dtype=np.float64)
-        damping = self.foldDamping * zGrid / (self.nz - 1)
-
-        # s1[x,y,z] = a0 + shift2d[x,y] * damping[z]   (same order as original)
-        s1 = a0 + shift2d[:, :, None] * damping[None, None, :]
-        z_target = zGrid[None, None, :] + s1
-        del s1
-
-        return ndimage.map_coordinates(r1d, [z_target], order=3, mode="nearest")
+        z       = np.arange(self.nz, dtype=np.float64)
+        zTarget = z[None, None, :] + (a0 + shift[:, :, None] * (self.foldDamping * z / (self.nz - 1))[None, None, :])
+        return ndimage.map_coordinates(reflectivity, [zTarget], order=3, mode='nearest')
 
     def applyShearing(self, reflectivity):
-        e0 = np.random.uniform(*self.shearOffset)
-        f  = np.random.uniform(*self.shearGradient)
-        g  = np.random.uniform(*self.shearGradient)
+        e0    = np.random.uniform(*self.shearOffset)
+        f     = np.random.uniform(*self.shearGradient)
+        g     = np.random.uniform(*self.shearGradient)
+        shift = e0 + f * np.arange(self.nx, dtype=np.float64)[:, None] + g * np.arange(self.ny, dtype=np.float64)[None, :]
+        return self.interpolate(reflectivity, shift)
 
-        ix, iy, iz = self._get_indices()
-        x_lin = np.arange(self.nx, dtype=np.float64)
-        y_lin = np.arange(self.ny, dtype=np.float64)
-        s2_2d = e0 + f * x_lin[:, None] + g * y_lin[None, :]
+    # O map_coordinates CÚBICO EM (x, y, z + shift): COM x E y INTEIROS O SPLINE 3D SE REDUZ AO SPLINE 1D EM z
+    def interpolate(self, volume, shift):
+        coef    = ndimage.spline_filter1d(np.pad(volume, ((0, 0), (0, 0), (self.PAD, self.PAD)), mode='edge'), 3, axis=2, mode='nearest')
+        floor   = np.floor(shift)
+        t       = shift - floor
+        start   = floor.astype(np.int64)[:, :, None] + np.arange(self.PAD - 1, self.PAD - 1 + volume.shape[2])[None, None, :]
+        weights = ((1 - t) ** 3 / 6, (3 * t ** 3 - 6 * t ** 2 + 4) / 6, (-3 * t ** 3 + 3 * t ** 2 + 3 * t + 1) / 6, t ** 3 / 6)
+        output  = np.zeros(volume.shape)
 
-        iz_shifted = iz.astype(np.float64)
-        iz_shifted += s2_2d[:, :, None]
+        for k, weight in enumerate(weights):
+            output += weight[:, :, None] * np.take_along_axis(coef, np.clip(start + k, 0, coef.shape[2] - 1), axis=2)
 
-        return ndimage.map_coordinates(reflectivity, [ix, iy, iz_shifted], order=3, mode="nearest")
+        return output
 
     def applyFaulting(self, reflectivity):
+        model = reflectivity
         masks = np.zeros(self.shape, dtype=np.uint8)
-        model = reflectivity                     # no copy — first map_coordinates returns new array
 
-        numFaults = np.random.randint(*self.faultCount)
-        ix, iy, iz = self._get_indices()
+        for _ in range(np.random.randint(*self.faultCount)):
+            model, masks = self.applyFault(model, masks)
 
-        # Pre-convert to float32 once (reused via .copy() per fault)
-        ix_f = ix.astype(np.float32)
-        iy_f = iy.astype(np.float32)
-        iz_f = iz.astype(np.float32)
-
-        for i in range(numFaults):
-            p0 = np.random.uniform(0.15, 0.85, 3) * np.array(self.shape)
-
-            dip_angle  = np.random.uniform(*self.faultDipAngle)
-            dip_rad    = np.deg2rad(dip_angle)
-            strike_rad = np.random.uniform(0, 2 * np.pi)
-            nx_n = np.sin(dip_rad) * np.cos(strike_rad)
-            ny_n = np.sin(dip_rad) * np.sin(strike_rad)
-            nz_n = np.cos(dip_rad) * np.random.choice([-1.0, 1.0])
-            normal = np.array([nx_n, ny_n, nz_n])
-
-            strike = np.array([-normal[1], normal[0], 0.0])
-            strikeNorm = np.linalg.norm(strike)
-            strike = np.array([1.0, 0.0, 0.0]) if strikeNorm < 1e-6 else strike / strikeNorm
-            dip = np.cross(normal, strike)
-            dip /= np.linalg.norm(dip)
-
-            # Coordinate distances from fault centre
-            dx = ix - p0[0]
-            dy = iy - p0[1]
-            dz = iz - p0[2]
-
-            distStrike     = strike[0] * dx + strike[1] * dy + strike[2] * dz
-            distDip        = dip[0]    * dx + dip[1]    * dy + dip[2]    * dz
-            distPlane_base = normal[0] * dx + normal[1] * dy + normal[2] * dz
-            del dx, dy, dz                              # ← free ~3 full volumes early
-
-            # Listric (curved) fault bend
-            bend = 0.0
-            if np.random.random() < self.faultCurveProb:
-                max_dist = max(self.shape) / 1.5
-                intensidade_base = np.random.uniform(self.faultCurveMax * 0.5, self.faultCurveMax)
-                direcao = np.random.choice([-1.0, 1.0])
-                curve_intensity = intensidade_base * direcao
-                bend = curve_intensity * ((distDip / max_dist) ** 2)
-
-            # Rough fault surface (filtered noise)
-            _noise = np.random.normal(0, 1, self.shape)
-            noisePlane = ndimage.gaussian_filter(_noise, sigma=self.faultRoughSigma)
-            del _noise
-            noisePlane *= self.faultRoughness                    # in-place
-
-            # Signed distance to fault surface
-            distPlane = distPlane_base + noisePlane - bend
-            del distPlane_base, noisePlane
-
-            # Throw (displacement) map
-            maxDisp  = np.random.uniform(*self.faultThrow)
-            throwMap = self.computeThrowMap(distStrike, distDip, maxDisp)
-            del distStrike, distDip
-
-            # Apply throw to hanging-wall side
-            hw = distPlane > 0
-            throw_hw = throwMap[hw]
-
-            # Copy pre-converted float32 coords (memcpy ≈ 2× faster than astype)
-            ixShifted = ix_f.copy()
-            iyShifted = iy_f.copy()
-            izShifted = iz_f.copy()
-
-            ixShifted[hw] += throw_hw * dip[0]
-            iyShifted[hw] += throw_hw * dip[1]
-            izShifted[hw] += throw_hw * dip[2]
-
-            model = ndimage.map_coordinates(
-                model, [ixShifted, iyShifted, izShifted], order=1, mode="nearest")
-            masks = ndimage.map_coordinates(
-                masks, [ixShifted, iyShifted, izShifted], order=0, mode="constant", cval=0)
-
-            faultZone = (np.abs(distPlane) <= self.faultZoneWidth) & (np.abs(throwMap) > self.faultThreshold)
-            masks[faultZone] = 1
-
-            # Free per-fault temporaries
-            del distPlane, throwMap, hw, throw_hw
-            del ixShifted, iyShifted, izShifted, bend, faultZone
-
-        del ix_f, iy_f, iz_f
         return model, masks
 
-    def computeThrowMap(self, distStrike, distDip, maxDisp):
-        """Compute displacement map for a single fault (gaussian or linear decay)"""
+    def applyFault(self, model, masks):
+        p0        = np.random.uniform(0.15, 0.85, 3) * np.array(self.shape)
+        dipRad    = np.deg2rad(np.random.uniform(*self.faultDipAngle))
+        strikeRad = np.random.uniform(0, 2 * np.pi)
+        normal    = np.array([np.sin(dipRad) * np.cos(strikeRad), np.sin(dipRad) * np.sin(strikeRad), np.cos(dipRad) * np.random.choice([-1.0, 1.0])])
+        strike    = np.array([-normal[1], normal[0], 0.0])
+        strike    = np.array([1.0, 0.0, 0.0]) if np.linalg.norm(strike) < 1e-6 else strike / np.linalg.norm(strike)
+        dip       = np.cross(normal, strike)
+        dip      /= np.linalg.norm(dip)
+
+        dx = (np.arange(self.nx) - p0[0])[:, None, None]
+        dy = (np.arange(self.ny) - p0[1])[None, :, None]
+        dz = (np.arange(self.nz) - p0[2])[None, None, :]
+
+        distDip    = dip[0] * dx + dip[1] * dy + dip[2] * dz
+        distPlane  = normal[0] * dx + normal[1] * dy + normal[2] * dz
+        bend       = self.getBend(distDip)
+        noise      = ndimage.gaussian_filter(np.random.normal(0, 1, self.shape), sigma=self.faultRoughSigma)
+        noise     *= self.faultRoughness
+        distPlane += noise
+        distPlane -= bend
+        throw      = self.getThrow(strike[0] * dx + strike[1] * dy + strike[2] * dz, distDip, np.random.uniform(*self.faultThrow))
+
+        hanging = distPlane > 0
+        moved   = throw[hanging]
+        coords  = np.array([(points + moved * step).astype(np.float32) for points, step in zip(np.nonzero(hanging), dip)])
+        model   = self.moveHangingWall(model, hanging, coords, order=1, mode='nearest')
+        masks   = self.moveHangingWall(masks, hanging, coords, order=0, mode='constant', cval=0) if masks.any() else masks
+
+        masks[(np.abs(distPlane) <= self.faultZoneWidth) & (np.abs(throw) > self.faultThreshold)] = 1
+        return model, masks
+
+    # FALHA LÍSTRICA: O PLANO SE DESLOCA COM O QUADRADO DA DISTÂNCIA AO LONGO DO MERGULHO
+    def getBend(self, distDip):
+        if np.random.random() >= self.faultCurveProb:
+            return 0.0
+
+        intensity = np.random.uniform(self.faultCurveMax * 0.5, self.faultCurveMax) * np.random.choice([-1.0, 1.0])
+        return intensity * ((distDip / (max(self.shape) / 1.5)) ** 2)
+
+    # REJEITO DE UMA FALHA: GAUSSIANO EM TORNO DO CENTRO OU RAMPA AO LONGO DO MERGULHO, METADE DAS VEZES CADA
+    def getThrow(self, distStrike, distDip, maxDisp):
         if np.random.random() < 0.5:
-            sigmaPlane = np.random.uniform(*self.faultDecaySigma)
-            # result = maxDisp * exp(-(dS² + dD²) / (2σ²))
-            result = distStrike ** 2                    # new array
-            result += distDip ** 2                      # in-place  (dD² freed after)
-            result /= -(2.0 * sigmaPlane ** 2)          # in-place  (== -(sum) / (2σ²))
-            np.exp(result, out=result)                  # in-place
-            result *= maxDisp                           # in-place
-            return result
+            throw  = distStrike ** 2
+            throw += distDip ** 2
+            throw /= -(2.0 * np.random.uniform(*self.faultDecaySigma) ** 2)
+            np.exp(throw, out=throw)
+            throw *= maxDisp
+            return throw
 
-        planeExtent = np.sqrt(self.nx**2 + self.ny**2 + self.nz**2)
-        direction   = np.random.choice([-1, 1])
-        # result = maxDisp * clip(0.5 + direction * dD / extent, 0, 1)
-        result = distDip / planeExtent                  # new array
-        result *= direction                             # in-place  (== dir * dD / ext)
-        result += 0.5                                   # in-place
-        np.clip(result, 0, 1, out=result)               # in-place
-        result *= maxDisp                               # in-place
-        return result
+        throw  = distDip / np.sqrt(self.nx ** 2 + self.ny ** 2 + self.nz ** 2)
+        throw *= np.random.choice([-1, 1])
+        throw += 0.5
+        np.clip(throw, 0, 1, out=throw)
+        throw *= maxDisp
+        return throw
 
+    # SÓ O BLOCO ALTO É REAMOSTRADO: NO BAIXO A COORDENADA É INTEIRA E O map_coordinates DEVOLVERIA O PRÓPRIO VOXEL
+    def moveHangingWall(self, volume, hanging, coords, **options):
+        moved          = volume.copy()
+        moved[hanging] = ndimage.map_coordinates(volume, coords, **options)
+        return moved
+
+    # O convolve1d DO RICKER SEM AS CAUDAS ABAIXO DE TAIL, NA MESMA ORIGEM: A SOMA NÃO MUDA E O KERNEL ENCURTA ATÉ 4X
     def applyWavelet(self, model):
-        """Convolve with a Ricker wavelet along the Z axis."""
-        f = np.random.uniform(*self.waveletFreq)
-        t = np.arange(-self.waveletDuration, self.waveletDuration, self.waveletDt)
+        f       = np.random.uniform(*self.waveletFreq)
+        t       = np.arange(-self.waveletDuration, self.waveletDuration, self.waveletDt)
         wavelet = (1 - 2 * (np.pi * f * t) ** 2) * np.exp(-((np.pi * f * t) ** 2))
-        return ndimage.convolve1d(model, wavelet, axis=2)
+        keep    = np.flatnonzero(np.abs(wavelet) > self.TAIL * np.abs(wavelet).max())
+        size    = len(wavelet)
+        start   = size - 1 - keep[-1]
+        kernel  = wavelet[::-1][start:size - keep[0]]
+        return ndimage.correlate1d(model, kernel, axis=2, origin=size // 2 - (1 - size % 2) - start - len(kernel) // 2)
 
     def applyNoise(self, image):
-        """Add band-limited Gaussian noise scaled to signal amplitude."""
-        scale = np.random.uniform(*self.noiseLevel) * np.std(image)
-        noise = np.random.normal(0.0, 1.0, image.shape)
-        noise = ndimage.gaussian_filter(noise, sigma=self.noiseSigma)
-        noise *= (scale / (np.std(noise) + 1e-8))
-
-        image += noise                                  # in-place (saves one full allocation)
-        image = ndimage.gaussian_filter(image, sigma=(0.5, 0.5, 0))
-        return image
+        scale  = np.random.uniform(*self.noiseLevel) * np.std(image)
+        noise  = ndimage.gaussian_filter(np.random.normal(0.0, 1.0, image.shape), sigma=self.noiseSigma)
+        noise *= scale / (np.std(noise) + 1e-8)
+        image += noise
+        return ndimage.gaussian_filter(image, sigma=(0.5, 0.5, 0))
 
     def crop(self, volume):
-        """Removes the safety margin to extract the final shape volume."""
-        x0, x1 = self.margin, self.nx - self.margin
-        y0, y1 = self.margin, self.ny - self.margin
-        z0, z1 = self.margin, self.nz - self.margin
-        return volume[x0:x1, y0:y1, z0:z1]
+        return volume[self.margin:self.nx - self.margin, self.margin:self.ny - self.margin, self.margin:self.nz - self.margin]
 
-    def getMetrics(self):
-        return {
-            "shape": self.shape,
-            "margin": self.margin,
-            "layerRange": self.layerRange,
-            "layerThickness": self.layerThickness,
-            "foldCount": self.foldCount,
-            "foldSigma": self.foldSigma,
-            "foldAmplitude": self.foldAmplitude,
-            "foldDamping": self.foldDamping,
-            "foldBaseShift": self.foldBaseShift,
-            "shearOffset": self.shearOffset,
-            "shearGradient": self.shearGradient,
-            "faultCount": self.faultCount,
-            "faultThrow": self.faultThrow,
-            "faultDipAngle": self.faultDipAngle,
-            "faultRoughness": self.faultRoughness,
-            "faultRoughSigma": self.faultRoughSigma,
-            "faultDecaySigma": self.faultDecaySigma,
-            "faultZoneWidth": self.faultZoneWidth,
-            "faultThreshold": self.faultThreshold,
-            "faultCurveProb": self.faultCurveProb,
-            "faultCurveMax": self.faultCurveMax,
-            "waveletFreq": self.waveletFreq,
-            "waveletDuration": self.waveletDuration,
-            "waveletDt": self.waveletDt,
-            "noiseLevel": self.noiseLevel,
-            "noiseSigma": self.noiseSigma
-        }
+    # CONTRASTE DE CADA TILE DE UM LOTE: LOG-NORMAL COM MEDIANA 1, ENTÃO O GANHO NÃO DEPENDE DO TAMANHO DO LOTE
+    def getJitter(self, n, seed):
+        draw = np.exp(self.gainJitter * np.clip(np.random.RandomState(seed).normal(0, 1, n), -2, 2))
+        return draw / np.median(draw)
+
+    def info(self):
+        return {'shape': self.shape, **{key: value for key, value in vars(self).items() if key not in ('finalShape', 'nx', 'ny', 'nz', 'shape')}}
 
     def print(self):
-        print(json.dumps(self.getMetrics(), indent=4))
+        print(json.dumps(self.info(), indent=4))
+
+    def applyGain(self, image, jitter=1.0):
+        if self.gain is None:
+            return image
+
+        image = image * (self.gain * jitter)
+        return (image if self.clip is None else np.clip(image, -self.clip, self.clip)).astype(np.float32)
+
+    # options = {'directory', 'regions': {nome: {'n_images', 'output', 'params'}}, 'seed'}; SEM seed A BASE É SORTEADA
+    def dataset(self, options, n_jobs=None):
+        unknown = set(options) - {'directory', 'regions', 'seed'}
+
+        if unknown:
+            raise ValueError(f'chaves desconhecidas em options: {sorted(unknown)}')
+
+        regions = options['regions']
+        folders = {name: os.path.join(options.get('directory', 'output'), cfg.get('output', name)) for name, cfg in regions.items()}
+
+        if len(set(folders.values())) < len(folders):
+            raise ValueError(f'duas regiões gravam na mesma pasta: {folders}')
+
+        for name, cfg in regions.items():
+            extra   = set(cfg) - {'n_images', 'output', 'params'}
+            unknown = set(cfg.get('params', {})) - set(vars(self))
+
+            if extra or unknown:
+                raise ValueError(f"'{name}': chaves desconhecidas {sorted(extra)}, parâmetros desconhecidos {sorted(unknown)}")
+
+        seed   = options['seed'] if 'seed' in options else np.random.randint(0, 1000000)
+        offset = 0
+
+        with ProcessPoolExecutor(max_workers=n_jobs or max(1, os.cpu_count() // 2), initializer=os.nice, initargs=(self.NICE,)) as executor:
+            for name, cfg in regions.items():
+                n         = cfg.get('n_images', 200)
+                generator = copy.deepcopy(self)
+                generator.set(cfg.get('params', {}))
+                images    = os.path.join(folders[name], 'images')
+                masks     = os.path.join(folders[name], 'masks')
+
+                shutil.rmtree(folders[name], ignore_errors=True)
+                os.makedirs(images)
+                os.makedirs(masks)
+
+                tasks = [(offset + i, seed + offset + i, jitter, images, masks) for i, jitter in enumerate(generator.getJitter(n, seed + offset))]
+                list(tqdm(executor.map(generator.saveTile, tasks), total=n, desc=name))
+                offset += n
+
+    # UM TILE DO dataset(): SEMENTE PRÓPRIA, GANHO DA REGIÃO E EIXOS (x, z, y) DOS DATASETS DO PROJETO
+    def saveTile(self, task):
+        index, seed, jitter, images, masks = task
+        np.random.seed(seed)
+        image, mask = self.get()
+        np.save(os.path.join(images, f'img_{index:04d}.npy'), np.transpose(self.applyGain(image, jitter), (0, 2, 1)))
+        np.save(os.path.join(masks, f'img_{index:04d}.npy'), np.transpose(mask, (0, 2, 1)))

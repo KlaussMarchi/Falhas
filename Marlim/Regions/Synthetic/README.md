@@ -108,21 +108,23 @@ lugar do da região, o ε fica grande justamente nas features que separam as reg
 descontinuidade) e a nota amolece onde mais importa — `calm` × `faulted` sobe de 73% para 79% e as
 configurações do `Generator2` ganham 3 a 4 pontos de graça. O teto é o mesmo nas duas versões.
 
-## 4. A régua: 6 grupos, 37 features
+## 4. A régua: 5 grupos, 42 features
 
 O espaço de features é a peça que o Xu et al. (2018) chama de "suitable feature space". Cada tile
 128³ vira **um vetor**, calculado **exatamente com o mesmo código** nos dois lados. As features saem
-de 8 seções 2D por tile — 4 inline e 4 crossline, nas posições 16, 48, 80 e 112 — e a média das
-seções é o valor do tile.
+de 8 seções 2D por tile — 4 inline e 4 crossline, nas posições 16, 48, 80 e 112. A média das seções
+é o valor do tile, **menos as que dependem de qual eixo é o lateral da seção** (`lag*` e `Px*`), que
+saem uma por orientação — sufixo `X` quando o lateral é a xline, `I` quando é a inline. As duas
+direções não são iguais no bloco: no `faulted` real o `lag16` vale 0.416 na inline e −0.004 na
+xline, e a média das oito seções escondia isso, dando "continuidade OK" com os dois eixos errados.
 
 | grupo | peso | features | o que captura |
 |---|---|---|---|
 | `amplitude` | 0.15 | `logStd`, `kurt`, `satFrac`, `q95n` | contraste, cauda da distribuição e saturação (o slab real satura no próprio p01/p99) |
-| `espectro` | 0.20 | `Pz0..Pz5`, `logPeakZ`, `Px0..Px3` | assinatura da wavelet e espessura das camadas (vertical), comprimento de onda das dobras (lateral) |
+| `espectro` | 0.20 | `Pz0..Pz5`, `logPeakZ`, `Px0..Px3` em `X` e `I` | assinatura da wavelet e espessura das camadas (vertical), comprimento de onda das dobras (lateral, por eixo) |
 | `estrutura` | 0.20 | `cohMean`, `coh25/50/75`, `dip10/50/90` | coerência e mergulho aparente pelo tensor de estrutura: refletor contínuo e sua inclinação |
-| `continuidade` | 0.15 | `lag1/2/4/8/16`, `zcr` | até onde o refletor pode ser seguido lateralmente, e quantas vezes o traço cruza o zero |
-| `falhas` | 0.20 | `discFrac`, `lineDens`, `lineDip`, `lineLen`, `discSharp` | **a falha como ela aparece na imagem**, sem usar rótulo |
-| `rotulo` | 0.10 | `maskFrac`, `visibility`, `maskDip`, `maskLen` | **o rótulo contra a imagem**: o que está marcado como falha está visível? |
+| `continuidade` | 0.15 | `lag1/2/4/8/16` em `X` e `I`, `zcr` | até onde o refletor pode ser seguido em cada direção lateral, e quantas vezes o traço cruza o zero |
+| `falhas` | 0.30 | `discFrac`, `lineDens`, `lineDip`, `lineLen`, `discSharp` | **a falha como ela aparece na imagem**, sem usar rótulo |
 
 As três primeiras famílias vêm de atributos sísmicos clássicos: **tensor de estrutura** para mergulho
 e coerência (Van Vliet & Verbeek, 1995; Fehmers & Höcker, 2003) e **espectro** por janela de
@@ -296,13 +298,20 @@ nota não era sorte daquele conjunto.
 O `Analysis.ipynb` maximiza esta nota com CMA-ES (`NatureSelector('genetic', …)`), uma região por
 célula. Três detalhes fazem a diferença entre a nota funcionar ou não como objetivo:
 
-- **só 23 variáveis, as que separam uma região da outra.** Os padrões do `SyntheticGenerator` são a
+- **só 24 variáveis, as que separam uma região da outra.** Os padrões do `SyntheticGenerator` são a
   configuração boa do `dataset_74` e `set()` troca só as chaves passadas, então a busca mexe em
   estratigrafia, dobramento, wavelet, ruído (nível e grão), quantidade de falha e no jitter de
-  contraste. O bloco de falha (rejeito, mergulho, rugosidade, arrasto, curvatura, espessura e limiar
+  contraste, mais o `foldAspect` — o alongamento da dobra no eixo da inline, que é a única alavanca
+  do gerador sobre a anisotropia lateral: sem ele `sigmaX` e `sigmaY` saem da mesma faixa com `theta`
+  sorteado, e o campo de dobra fica isotrópico por construção. O bloco de falha (rejeito, mergulho, rugosidade, arrasto, curvatura, espessura e limiar
   do rótulo), o `foldBaseShift`, o `shearOffset` e o `waveletDt` ficam no padrão: são iguais nas três
   regiões e já estão calibrados. Cada dimensão que sai da disputa é orçamento que sobra para as que
-  importam — e a seção 10 mostra a medição que justifica deixar o bloco de falha de fora.
+  importam — e a seção 10 mostra a medição que justifica deixar o bloco de falha de fora. No
+  `dead` o `faultCount` também sai da disputa (`FIXED`), fixo em (0, 1): a régua **premia** pôr
+  falha ali, porque o crosshatch de migração deixa a zona morta descontínua e falha sintética
+  aproxima `discFrac`/`lineDens` — medido, o grupo `falhas` vai de 83 para 87 e a nota de 87.6
+  para 89.5. Mas o rótulo viria sobre ruído que o especialista nunca anotou, e o treino ganha
+  alucinação em vez de negativo puro. Os 1.9 pontos são o preço de não mentir para a rede.
 - **sementes fixas na busca, sementes novas na decisão.** O lote de 18 tiles sai sempre das mesmas
   sementes, então o CMA-ES enxerga uma superfície determinística em vez de ruído — mas acaba
   aprendendo os defeitos daquele conjunto: no `calm` a busca marcou 88.0% nas sementes dela e 82.9%

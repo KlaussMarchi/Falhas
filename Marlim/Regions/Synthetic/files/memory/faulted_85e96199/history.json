@@ -1,0 +1,43 @@
+[
+  {
+    "run": 1,
+    "at": "2026-09-16T02:23:21",
+    "model": "genetic",
+    "score": 97.73929062682576,
+    "improved": true,
+    "stopped": 37,
+    "best": {
+      "layerLow": 0.8604917230459214,
+      "layerSpan": 0.352772300339677,
+      "thickLow": 0.8681951696701832,
+      "thickSpan": 0.17538894570727498,
+      "foldLow": 0.4547003190516142,
+      "foldSpan": 0.44157730812087925,
+      "foldSigmaLow": 0.030866751742081866,
+      "foldSigmaSpan": 0.45489520813742035,
+      "foldAmpLow": 0.4879813856790351,
+      "foldAmpSpan": 0.5769829382101498,
+      "foldDamping": 0.28202242139360345,
+      "shearLow": 0.39073497578846267,
+      "shearSpan": 0.41318916203086753,
+      "faultLow": 0.46107709622401605,
+      "faultSpan": 0.22285337825686566,
+      "freqLow": 0.0,
+      "freqSpan": 0.6265148694394784,
+      "duration": 0.3408743705105061,
+      "noiseLow": 0.8533633299169778,
+      "noiseSpan": 0.5597482429797558,
+      "noiseSmooth": 0.8124293761021509,
+      "noiseInline": 0.7594765992974097,
+      "gainJitter": 0.9330986325499071
+    },
+    "params": {
+      "population": 16,
+      "generations": 60,
+      "sigma": 0.3,
+      "patience": 15,
+      "target": null,
+      "maxNfe": 960
+    }
+  }
+]

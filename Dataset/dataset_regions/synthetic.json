@@ -1,0 +1,165 @@
+{
+    "directory": "../../../Dataset/dataset_regions",
+    "seed": 20262915,
+    "regions": {
+        "calm": {
+            "n_images": 50,
+            "output": "original/calm",
+            "params": {
+                "layerRange": [
+                    63,
+                    152
+                ],
+                "layerThickness": [
+                    4,
+                    8
+                ],
+                "foldCount": [
+                    42,
+                    75
+                ],
+                "foldSigma": [
+                    24.515932431365677,
+                    53.76308005510586
+                ],
+                "foldAspect": 0.382663793941423,
+                "foldAmplitude": [
+                    -11.822992784418425,
+                    3.478381983998222
+                ],
+                "foldDamping": 1.0601264686772096,
+                "shearGradient": [
+                    -0.1360111379559727,
+                    0.04893479855673788
+                ],
+                "faultCount": [
+                    0,
+                    1
+                ],
+                "waveletFreq": [
+                    28.597555617339278,
+                    278.5297005629275
+                ],
+                "waveletDuration": 0.1024885511000147,
+                "noiseLevel": [
+                    0.005843675899396519,
+                    0.2498691278302782
+                ],
+                "noiseSigma": [
+                    1.715408565262246,
+                    3.1341930966511073,
+                    3.1341930966511073
+                ],
+                "gain": 0.17292680293321602,
+                "gainJitter": 0.418677924078526,
+                "clip": 0.45
+            }
+        },
+        "dead": {
+            "n_images": 50,
+            "output": "original/dead",
+            "params": {
+                "layerRange": [
+                    480,
+                    735
+                ],
+                "layerThickness": [
+                    5,
+                    9
+                ],
+                "foldCount": [
+                    20,
+                    55
+                ],
+                "foldSigma": [
+                    16.844634803575957,
+                    49.93430719368175
+                ],
+                "foldAspect": 0.6164124473863329,
+                "foldAmplitude": [
+                    -8.874218504925203,
+                    37.12942982462349
+                ],
+                "foldDamping": 5.624560998155463,
+                "shearGradient": [
+                    -0.2486259001803537,
+                    0.21430204902649225
+                ],
+                "faultCount": [
+                    0,
+                    1
+                ],
+                "waveletFreq": [
+                    25.0,
+                    40.663209393757754
+                ],
+                "waveletDuration": 0.049089882983271854,
+                "noiseLevel": [
+                    0.35453666877181955,
+                    0.9083145242534487
+                ],
+                "noiseSigma": [
+                    2.8416780292486536,
+                    2.59370067297221,
+                    2.59370067297221
+                ],
+                "gain": 0.01453089583665126,
+                "gainJitter": 0.4353571725244787,
+                "clip": 0.45
+            }
+        },
+        "faulted": {
+            "n_images": 330,
+            "output": "original/faulted",
+            "params": {
+                "layerRange": [
+                    184,
+                    225
+                ],
+                "layerThickness": [
+                    8,
+                    15
+                ],
+                "foldCount": [
+                    21,
+                    33
+                ],
+                "foldSigma": [
+                    3.86195,
+                    51.77975
+                ],
+                "foldAspect": 0.35,
+                "foldAmplitude": [
+                    -10.72782,
+                    8.689850000000002
+                ],
+                "foldDamping": 3.23504,
+                "shearGradient": [
+                    -0.36113,
+                    0.21564
+                ],
+                "faultCount": [
+                    2,
+                    4
+                ],
+                "waveletFreq": [
+                    25.0,
+                    116.52548
+                ],
+                "waveletDuration": 0.1961,
+                "noiseLevel": [
+                    0.13432,
+                    0.31618
+                ],
+                "noiseSigma": [
+                    1.90376,
+                    2.00861,
+                    2.00861
+                ],
+                "gain": 0.1311291620135307,
+                "gainJitter": 0.52254,
+                "clip": 0.45
+            }
+        }
+    }
+}

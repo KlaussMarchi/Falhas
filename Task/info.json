@@ -1,1 +1,1 @@
-{"network": "resaceunet_grva", "dataset": "dataset_74", "img_size": null, "lr": 0.0001, "loss": "smooth_dice", "batch_size": 2, "scheduler": "plateau", "dropout": 0.0, "num_filters": 32}
+{"network": "unet3d_v2", "dataset": "dataset_regions", "img_size": null, "lr": 0.0001, "loss": "smooth_dice", "batch_size": 2, "scheduler": "plateau", "dropout": 0.0, "num_filters": 32}
