@@ -20,7 +20,7 @@ class CMAES(Engine):
 
     def __init__(self, objective, variables, maximize=True, population=None, generations=300, sigma=None,
                  patience=None, target=None, constraints=None, seed=None, memory=None, workers=1,
-                 backend='thread', verbose=True):
+                 backend='thread', verbose=True, mean=None):
         super().__init__(objective, variables, maximize, constraints, backend, workers, seed, memory, verbose, patience, target)
 
         # λ = 4 + 3·ln(d) é o default de Hansen, calibrado para gastar o mínimo de avaliações por geração
@@ -32,6 +32,7 @@ class CMAES(Engine):
         self.maxNfe = self.size * self.span
         self.range  = float(np.mean(self.problem.up - self.problem.low))
         self.sigma0 = self.SIGMA0 * self.range if sigma is None else float(sigma)
+        self.mean   = None if mean is None else np.clip(np.asarray(mean, float), self.problem.low, self.problem.up)
 
     def update(self):
         rng      = self.open()
@@ -41,6 +42,7 @@ class CMAES(Engine):
             arrays = self.resume()
             if arrays is None:
                 self.born(self.size, rng)
+                self.m   = self.m if self.mean is None else self.mean.copy()   # ponto de partida conhecido: só a primeira nuvem, o IPOP reinicia sorteando
                 X, gen   = self.ask(rng), 0
                 raw      = self.score(X)
                 self.nfe = self.lam
@@ -101,7 +103,7 @@ class CMAES(Engine):
         return self.maxNfe, 'ev'
 
     def config(self):
-        return {'population': self.size, 'generations': self.span, 'sigma': self.sigma0,
+        return {'population': self.size, 'generations': self.span, 'sigma': self.sigma0, 'mean': None if self.mean is None else self.mean.tolist(),
                 'patience': self.patience, 'target': self.target, 'maxNfe': self.maxNfe}
 
     # O CHECKPOINT LEVA OS ESCALARES DA DISTRIBUIÇÃO; AS MATRIZES VÃO PELO pack()
