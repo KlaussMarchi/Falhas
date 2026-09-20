@@ -1,484 +1,379 @@
-# Similaridade entre uma região de Marlim e um lote de tiles sintéticos
+# Calibração do gerador sintético para o bloco de Marlim
 
-Esta pasta calibra o `SyntheticGenerator` região a região. O `Analysis.ipynb` procura, com o
-`NatureSelector`, a configuração que faz o gerador produzir tiles parecidos com os tiles reais que o
-`../Marlim/Analysis.ipynb` separou em `calm`, `faulted` e `dead`.
+Esta pasta escolhe os parâmetros do `SyntheticGenerator` com que o `Dataset/dataset_regions` é gerado.
+O `Analysis.ipynb` faz isso com **uma sonda de transferência**: treina uma rede pequena em cada lote
+sintético candidato e mede, com a métrica de sticks do projeto, o quanto ela acha das falhas que o
+especialista anotou nas inlines de Marlim. A similaridade de imagem entre sintético e real, que era
+o objetivo até 17/09/2026, continua no notebook como **diagnóstico**.
 
-Este documento explica a **função de similaridade** que serve de objetivo para essa busca: o que ela
-mede, por que foi construída assim, quanto vale cada nota e de onde vem cada peça.
+Este documento explica por que o objetivo mudou (com as medições que decidiram), o que a sonda mede,
+quanto ela vale e o que se sabe sobre ela, como a busca usa a nota, e o que a similaridade ainda diz.
 
-**Como rodar.** O `Analysis.ipynb` é autossuficiente: não lê arquivo de configuração nenhum — o
-melhor genoma conhecido de cada região é a constante `Generator.REFERENCE` — e a única entrada são
-os tiles reais de `../Marlim/files`. Basta executar de cima para baixo; cada região são duas células
-(`SEARCH.update(região)` e `SEARCH.show(região)`), ~60 min por região. O que sai é o `regions.json`,
-que o `../Generate.ipynb` consome para montar `Dataset/marlim_nature`. Rodar de novo **estende** a
-campanha e nunca piora o arquivo, porque a escolha final compara o achado novo com a referência e
-com o que já estava gravado, sempre em sementes que a busca não viu.
+**Como rodar.** O `Analysis.ipynb` roda de cima para baixo. Entram os tiles reais de
+`../Marlim/files` (similaridade), os tiles `.dat` de `Dataset/marlim/patch_<id>` e as anotações de
+`Marlim/files/patches/<id>/<id>_interpretado.png` (sonda). Sai o `Dataset/dataset_regions/original` +
+`synthetic.json`, que o `Format.ipynb` do dataset normaliza. A busca grava o estado a cada geração
+em `files/memory/transfer_<hash>/`: interromper e rodar de novo retoma, e rodar uma campanha terminada
+só carrega o resultado (`EXTEND = True` estende).
 
 ---
 
 ## 1. O problema
 
-Comparar **um lote de 15–20 tiles sintéticos** com **os 123–188 tiles reais** de uma região e
-devolver **uma porcentagem**: 100% quer dizer "este lote poderia ter saído do bloco de Marlim
-naquela região", 0% quer dizer "não tem nada a ver". A nota precisa:
+O que se cobra do dado sintético é **a rede treinada nele achar, no bloco real de Marlim, as falhas
+que o especialista anotou** — medido no fim da cadeia pelo `Marlim/2 - Analysis.ipynb`, stick a
+stick (recall, detecção, precisão, F1). A cadeia inteira é
 
-1. **enxergar falha** — é para treinar detector de falha, então a nota tem de cair quando a falha
-   sintética aparece na imagem de um jeito que a falha real não aparece;
-2. **funcionar com 15–20 amostras** — cada tile 128³ custa de 6 a 25 s para gerar, e a busca vai
-   pedir centenas de lotes;
-3. **ser diagnóstica** — quando a nota é 70%, é preciso saber *o que* está errado, senão não há como
-   corrigir o gerador;
-4. **não ser enganável** — não pode dar nota alta para um lote que acerta o contraste e erra a
-   textura, nem para um que acerta tudo menos a falha.
+    parâmetros do gerador → tiles sintéticos → dataset → rede treinada → predição no Marlim → comparação com o especialista
 
-## 2. Por que não usar FID, KID ou MMD direto
+e até 17/09/2026 o que se otimizava era o **primeiro elo**: a semelhança de imagem entre um lote
+sintético e os tiles reais de cada região (`calm`, `faulted`, `dead`). Nenhuma medição ligava esse
+elo ao último.
 
-A rota padrão para medir "quão parecidos são dois conjuntos de imagens" é comparar distribuições num
-espaço de features de uma rede pré-treinada: FID (Heusel et al., 2017), KID (Bińkowski et al., 2018)
-ou MMD (Gretton et al., 2012). O estudo empírico de Xu et al. (2018) testou essas métricas e concluiu
-que MMD e o teste do vizinho mais próximo (1-NN) são as que têm as propriedades desejáveis —
-**desde que as distâncias sejam calculadas num espaço de features adequado**. É justamente esse o
-ponto que quebra aqui:
+## 2. A similaridade de imagem não serve de objetivo — medido
 
-- **não existe embedding pré-treinado para sísmica 3D.** A Inception foi treinada em fotografia; as
-  features dela não descrevem frequência dominante, coerência de refletor nem rejeito de falha.
-- **FID é enviesado com poucas amostras.** Com 18 tiles a estimativa da covariância é ruído; foi
-  para resolver isso que o KID trocou o estimador por um **não enviesado**.
-- **a nota não sai interpretável.** FID e MMD devolvem um número numa escala arbitrária; aqui a nota
-  precisa ser uma porcentagem que se leia direto.
-- **falha não é "textura".** Nenhuma dessas métricas separa "a imagem tem descontinuidades com
-  geometria de falha" de "a imagem é rugosa".
+### 2.1 O caso que decidiu
 
-A decisão foi manter a **ideia central** (distância entre duas amostras num espaço de features) e
-trocar as duas peças: o **espaço de features** vira uma régua sísmica interpretável, e a
-**distância** vira uma que já nasce normalizada entre 0 e 1.
+O `dataset_regions` gerado pela busca por similaridade (50 `calm` + 50 `dead` + 330 `faulted`,
+notas de 94–98% contra as regiões reais) treinou o `model_25` (`unet3d_v2`, `smooth_dice`, lr 1e-4,
+100 épocas). No sintético ele é o melhor modelo da série (IoU de teste 0.8205). No Marlim:
 
-## 3. A estatística: coeficiente de energia normalizado
+| modelo | dado | IoU teste | recall | detecção | precisão | F1 (4 patches) |
+|---|---|---|---|---|---|---|
+| `Marcia/model_1` | `dataset_74` | 0.736 | 0.565 | 0.527 | 0.271 | **0.358** |
+| `model_25` | `dataset_regions` (similaridade) | **0.8205** | 0.036 | 0.032 | 0.746 | **0.068** |
 
-Para duas amostras $X$ e $Y$, a **distância de energia** (Székely & Rizzo) é
+No 1200, com a mesma rede, loss e lr, o `model_23` (`dataset_74`) tem recall 0.487 e F1 0.354. A
+predição do `model_25` **não tem resposta nem abaixo do limiar**: só 6.0% dos pixels do traço do
+especialista passam de 0.05 de probabilidade num raio de 4 px, contra 62.8% do `model_23`, e o
+fundo marcado é 0.05% contra 2.1%. Não é calibração — a rede não enxerga as falhas reais.
 
-$$D^2(F,G) = 2\,\mathbb{E}\lVert X-Y \rVert - \mathbb{E}\lVert X-X' \rVert - \mathbb{E}\lVert Y-Y' \rVert \ \ge 0,$$
+### 2.2 Similaridade contra resultado, em quatro dados
 
-com $D = 0$ **se e somente se** as duas distribuições são iguais. A revisão de Rizzo & Székely
-(2016, p. 29) dá a versão normalizada:
+Nota de similaridade (36 tiles de cada dado contra a região `faulted` real) e o que a rede treinada
+naquele dado faz no Marlim (pixel: fração do traço do especialista com predição ≥ 0.5 a até 4 px, no 1200):
 
-$$H = \frac{D^2(F,G)}{2\,\mathbb{E}\lVert X-Y \rVert} = \frac{2A - B - C}{2A}, \qquad 0 \le H \le 1,$$
-
-onde $A$, $B$ e $C$ são as médias das distâncias par a par entre as duas amostras, dentro da
-primeira e dentro da segunda. A similaridade da feature é
-
-$$\mathrm{sim} = 100 \times (1 - H)\ \%.$$
-
-Por que esta e não outra:
-
-- **já é porcentagem.** $H$ vive em $[0,1]$ por construção, sem escala arbitrária e sem calibrar
-  temperatura de exponencial;
-- **zera só quando as distribuições são iguais** — não compara só médias: pega deslocamento, escala
-  e forma;
-- **em 1D é exatamente a distância de Cramér** ($D^2 = 2\int (F-G)^2$), isto é, a área entre as duas
-  funções de distribuição acumulada — que é o que se quer dizer com "as duas amostras se sobrepõem";
-- **é invariante a escala e a translação em 1D**: numerador e denominador têm a mesma unidade, então
-  nenhuma feature precisa ser padronizada antes, e nenhuma domina a conta por ter unidade maior;
-- **tem estimador não enviesado (U-statistic)** e funciona com amostras pequenas e desbalanceadas
-  (18 sintéticos contra 149 reais);
-- **não tem hiperparâmetro** — ao contrário do MMD, que precisa de kernel e largura de banda. E não
-  é uma escolha exótica: com o kernel de distância, MMD e distância de energia são a **mesma
-  estatística** (Sejdinovic et al., 2013).
-
-Calibração medida (seção 7): 18 tiles reais contra o resto da própria região dão **99%**, que é o
-teto atingível; um patch inteiro contra o resto da sua região dá 97%; uma região diferente dá 58–79%.
-
-### A resolução ε
-
-Uma feature pode ser degenerada no real — `maskFrac` (fração rotulada como falha) é exatamente 0 em
-todos os tiles `calm`, porque a região foi definida assim. Como $H$ é invariante a escala, qualquer
-valor sintético não nulo, por menor que seja, daria $H \approx 1$. Por isso cada feature ganha uma
-**resolução**: a menor diferença que ainda importa,
-
-$$H_f = \frac{2A - B - C}{2A + \varepsilon_f}, \qquad
-\varepsilon_f = 0.25 \times \max\bigl(\mathrm{IQR}_f(\text{região}),\ 0.05 \times \mathrm{IQR}_f(\text{bloco})\bigr).$$
-
-A leitura é direta: *diferença menor que um quarto da variação natural daquela feature **dentro da
-própria região** não conta*. O piso de 5% do IQR do bloco inteiro só entra quando a feature é
-degenerada na região, e evita que uma única feature zere o grupo.
-
-A escolha da região como escala foi medida, não adotada por gosto: com o IQR do bloco inteiro no
-lugar do da região, o ε fica grande justamente nas features que separam as regiões (σ, coerência,
-descontinuidade) e a nota amolece onde mais importa — `calm` × `faulted` sobe de 73% para 79% e as
-configurações do `Generator2` ganham 3 a 4 pontos de graça. O teto é o mesmo nas duas versões.
-
-## 4. A régua: 5 grupos, 42 features
-
-O espaço de features é a peça que o Xu et al. (2018) chama de "suitable feature space". Cada tile
-128³ vira **um vetor**, calculado **exatamente com o mesmo código** nos dois lados. As features saem
-de 8 seções 2D por tile — 4 inline e 4 crossline, nas posições 16, 48, 80 e 112. A média das seções
-é o valor do tile, **menos as que dependem de qual eixo é o lateral da seção** (`lag*` e `Px*`), que
-saem uma por orientação — sufixo `X` quando o lateral é a xline, `I` quando é a inline. As duas
-direções não são iguais no bloco: no `faulted` real o `lag16` vale 0.416 na inline e −0.004 na
-xline, e a média das oito seções escondia isso, dando "continuidade OK" com os dois eixos errados.
-
-| grupo | peso | features | o que captura |
-|---|---|---|---|
-| `amplitude` | 0.15 | `logStd`, `kurt`, `satFrac`, `q95n` | contraste, cauda da distribuição e saturação (o slab real satura no próprio p01/p99) |
-| `espectro` | 0.20 | `Pz0..Pz5`, `logPeakZ`, `Px0..Px3` em `X` e `I` | assinatura da wavelet e espessura das camadas (vertical), comprimento de onda das dobras (lateral, por eixo) |
-| `estrutura` | 0.20 | `cohMean`, `coh25/50/75`, `dip10/50/90` | coerência e mergulho aparente pelo tensor de estrutura: refletor contínuo e sua inclinação |
-| `continuidade` | 0.15 | `lag1/2/4/8/16` em `X` e `I`, `zcr` | até onde o refletor pode ser seguido em cada direção lateral, e quantas vezes o traço cruza o zero |
-| `falhas` | 0.30 | `discFrac`, `lineDens`, `lineDip`, `lineLen`, `discSharp` | **a falha como ela aparece na imagem**, sem usar rótulo |
-
-As três primeiras famílias vêm de atributos sísmicos clássicos: **tensor de estrutura** para mergulho
-e coerência (Van Vliet & Verbeek, 1995; Fehmers & Höcker, 2003) e **espectro** por janela de
-profundidade, que é como o bloco de Marlim já vinha sendo medido neste projeto. A régua é uma evolução
-direta das 40 features do `Generator2.ipynb`, que já tinham sido validadas neste projeto.
-
-### Como as falhas entram
-
-Este é o ponto que não podia se perder, e ele tem **duas metades**.
-
-**(a) A falha na imagem, sem rótulo.** Para cada seção calcula-se a **semblance com direção de
-mergulho** — semblance de 5 traços alinhados pelo mergulho local do tensor de estrutura, a mesma
-receita de coerência de Marfurt et al. (1998) e Bahorich & Farmer (1995). Onde há refletor contínuo
-a semblance é ~1; onde a falha corta, ela cai. Dos voxels com semblance < 0.8 saem:
-
-- `discFrac` — fração da seção descontínua;
-- `lineDens` — comprimento total de **lineamentos tipo falha** (componentes conexas com ≥ 24 px e
-  mergulho entre 35° e 88°) por unidade de área: é a densidade de falha **visível**;
-- `lineDip`, `lineLen` — mergulho e comprimento medianos desses lineamentos;
-- `discSharp` — razão entre a descontinuidade no lineamento e fora dele: mede se a falha é um corte
-  nítido ou um borrão.
-
-Isso responde à pergunta que interessa ao treino: **a falha sintética se parece com a falha real
-naquilo que a rede enxerga** — quantas, com que inclinação, quão compridas, quão nítidas.
-
-**(b) O rótulo contra a imagem.** No real existe a interpretação do especialista, numa inline por
-tile (a `inline` do `DataBase.csv`); no sintético existe a máscara do gerador. Compara-se **uma
-seção rotulada por tile dos dois lados**, nas mesmas condições:
-
-- `maskFrac` — fração rotulada;
-- `visibility` — descontinuidade mediana **sob o rótulo** dividida pela **fora dele**. Razão ≈ 1
-  significa rótulo em cima de imagem lisa, que é o pior caso possível: ensina a rede a inventar
-  falha. No real, os tiles `faulted` dão 2.3;
-- `maskDip`, `maskLen` — mergulho e comprimento dos traços rotulados (o especialista anota mergulho
-  mediano de 68° e traços de ~150 px dentro de um tile).
-
-**Por que não calibrar só pela estatística da máscara.** Em 2026-08-17 este projeto já tentou isso e
-deu errado: ajustar fração, comprimento e mergulho da máscara acertou os números **pelo motivo
-errado** — a busca chegou a superfícies fragmentadas, rejeito com piso zero e traço quebrado, ou
-seja, rótulo bonito sobre imagem lisa. A métrica que pega esse erro é a **visibilidade**, e é por
-isso que ela está aqui, junto com a metade (a): a nota só sobe se a falha existir **na imagem**.
-
-### O que ficou de fora, e por quê
-
-- **GLCM / Haralick (1973)** e estatísticas de textura tipo Portilla & Simoncelli (2000): descrevem
-  textura bem, mas não separam falha de rugosidade, e as features não têm leitura geofísica.
-- **Fault likelihood de Hale (2013)**: é o atributo de falha mais forte que existe, mas custa caro
-  (varredura em mergulho e azimute) e a busca chama a função centenas de vezes. A semblance com
-  direção de mergulho é a versão barata do mesmo princípio.
-- **1-NN / C2ST (Lopez-Paz & Oquab, 2016)**: dá porcentagem bonita (50% de acurácia = indistinguível),
-  mas com 18 amostras o desvio da acurácia é de ~8 pontos, o que vira ~16 pontos de nota — ruído
-  demais para guiar CMA-ES.
-
-## 5. As mesmas condições
-
-A comparação só vale se os dois lados passarem pelo mesmo funil:
-
-| item | real | sintético |
+| dado | similaridade `faulted` | `unet3d_v2` no 1200: recall de pixel |
 |---|---|---|
-| tile | 128³, eixo `(inline, z, xline)` | idem (transposição `(0,2,1)` do gerador) |
-| escala | [0,1] do p01/p99 do slab | `clip(img × ganho × jitter, ±0.45)` → [0,1] |
-| zero | mediana do próprio tile | mediana do próprio tile |
-| seções | 4 inline + 4 crossline (16, 48, 80, 112) | idem |
-| seção rotulada | a inline anotada pelo especialista | a inline central |
-| quantidade | todos os tiles da região (123–188) | 18 tiles |
+| `dataset_regions` | **94.4** | **0.056** |
+| `marlim_opt` (misturado ao `74`/`wu`) | 88.4 | 0.38 / 0.32 |
+| `dataset_74` | 81.6 | 0.60–0.61 |
+| `dataset_wu` | 78.8 | 0.44–0.51 |
 
-O **ganho** não é procurado pela busca: para cada lote ele é resolvido por bisseção, como o escalar
-que leva o σ mediano pós-format ao σ mediano da região real. Contraste é o parâmetro mais fácil de
-acertar e o que mais domina qualquer métrica de imagem; tirá-lo da disputa faz a nota medir o que
-interessa — textura, estrutura e falha — e economiza uma dimensão na busca. O `jitter` (variação de
-contraste entre tiles, log-normal) continua sendo procurado, porque o bloco real tem essa variação —
-mas o sorteio é **normalizado para mediana 1** antes da bisseção, senão o ganho ficaria preso ao
-sorteio daquele lote (com 18 tiles a mediana chega a 1.17) e não valeria para um lote de outro
-tamanho, como os 220 tiles por região do `../Generate.ipynb`.
+**Quanto mais o dado se parece com Marlim pela régua, pior a rede no Marlim.** O mesmo aparece nas
+misturas antigas da `Marcia/`: juntar `marlim_opt` (o gerador anterior calibrado para Marlim) ao
+`dataset_74` ou ao `dataset_wu` baixa o recall de pixel de 0.60 para 0.38 e de 0.51 para 0.32.
 
-## 6. Agregação
+### 2.3 A alternativa testada: IoU de um modelo treinado no Wu sobre o sintético
 
-$$\mathrm{grupo}_g = \frac{1}{|g|}\sum_{f \in g}(1 - H_f), \qquad
-\mathrm{nota} = 100 \times \prod_g \mathrm{grupo}_g^{\,w_g}, \qquad \sum_g w_g = 1.$$
+A ideia era medir a "natureza das falhas" do lote pelo IoU que uma rede treinada no `dataset_wu`
+consegue nele. Medido com duas redes (`model_21`, `Marcia/model_2`), 20–24 tiles de cada dado:
 
-Média **aritmética dentro** do grupo (features redundantes não desequilibram) e média **geométrica
-ponderada entre** grupos: um grupo quebrado não é compensado por outro perfeito. Um lote com
-textura impecável e falha errada não chega a 90%, que é exatamente o que se quer de um objetivo cujo
-produto final é um detector de falhas. Feature que não existe nos dois lados (por exemplo
-`visibility` no `calm`, onde o especialista não anotou nada) sai da conta, e os pesos dos grupos
-restantes são renormalizados.
-
-## 7. Calibração: quanto vale cada nota
-
-Tudo medido nos tiles reais deste projeto (149 `calm`, 188 `faulted`, 123 `dead`), com 18 tiles no
-lado "sintético".
-
-**Teto e discriminação**
-
-| comparação | nota |
-|---|---|
-| 18 tiles reais da região contra o resto da mesma região | **99.1–99.5% (± 0.7)** — teto |
-| um patch inteiro contra o resto da sua região (12 combinações) | 97.1% em média, 92.6–99.8 |
-| região vizinha (`calm` × `faulted`) | 73–79% |
-| região oposta (`calm` × `dead`) | 58% |
-
-A linha do meio é a régua prática: **a variação natural entre patches de Marlim custa 1 a 7 pontos**
-(o `2600`, o patch estruturalmente diferente, é o que cai para ~93 nas três regiões). Então um lote
-sintético acima de ~93% está dentro da variação do próprio bloco, e cada ponto abaixo de 90% é
-diferença que o olho enxerga.
-
-**Degradações controladas** (partindo de 18 tiles reais `calm`, nota 99.0)
-
-| perturbação | nota |
-|---|---|
-| nenhuma | 98.9 |
-| blur gaussiano σ = 0.5 / 1 / 2 | 98.8 / 96.6 / 89.9 |
-| ruído branco 2% / 5% / 10% / 20% | 95.3 / 84.9 / 77.5 / 62.8 |
-| contraste ×0.6 / ×1.6 | 96.9 / 95.3 |
-
-A nota cai de forma monótona e na ordem certa. Contraste quase não mexe — como esperado, já que o
-ganho é ajustado antes da comparação.
-
-**Configurações do `Generator2.ipynb`** (as três já calibradas à mão, mais a genérica do
-`dataset_74`), 18 tiles cada, contra cada região real:
-
-| configuração | `calm` | `faulted` | `dead` |
+| dado | IoU `model_21` | IoU `Marcia/model_2` | F1 3D no Marlim |
 |---|---|---|---|
-| `calmo` | **83.3** | 75.9 | 56.0 |
-| `falhado` | 77.4 | **86.5** | 62.5 |
-| `morto` | 68.1 | 74.0 | 73.5 |
-| `dataset_74` (genérica) | 51.5 | **72.1** | 51.2 |
+| `dataset_wu` (teste) | 0.761 | 0.766 | 0.35 |
+| `dataset_74` | 0.620 | 0.622 | 0.35–0.37 |
+| `dataset_regions/faulted` | 0.609 | 0.605 | **0.07** |
+| `marlim_opt` | 0.187 | 0.200 | — |
 
-O `calmo` e o `falhado` tiram a maior nota na região para a qual foram calibrados, e a genérica
-perde para as duas. O `morto` era a exceção: 73.5 na zona morta contra 74.0 no falhado — um empate
-técnico que parecia teto do gerador, porque a `SyntheticGenerator` monta refletividade 1D e convolve
-em z, o campo sai localmente planar e a coerência não descia de ~0.90 contra os 0.68 do real.
+O IoU pelo modelo Wu dá ao `dataset_regions` a mesma nota do `dataset_74` — ele **aprovaria o dado
+que fracassou**. As falhas rotuladas do `regions` são tão visíveis quanto as do `74`; o defeito dele
+não está no rótulo das falhas. O sinal que separa está no sentido inverso: o `model_25` (treinado no
+`regions`) marca IoU 0.86 no próprio domínio, 0.49 no `dataset_74` e 0.25 no `dataset_wu`, enquanto o
+`model_23` (treinado no `74`) marca 0.71 no `regions` e 0.68 no `wu`. **O que prevê a transferência
+é treinar no candidato e testar fora dele**, não testar o candidato com uma rede de fora.
 
-**Era teto do `applyNoise`, não do gerador.** O σ do ruído estava fixo em `(1.0, 1.0, 0.5)` dentro do
-método — grão fino em z e largo em x, isto é, textura *deitada*, que é coerência alta. Virou o
-atributo `noiseSigma` (padrão idêntico, conferido bit a bit) e entrou na busca. O caminho da nota,
-cada passo medido em sementes novas:
+O mesmo vale para o IoU **no próprio sintético**. Nas 15 configurações medidas com a sonda (seção 4), o IoU dela nos
+tiles sintéticos que ficaram fora do treino não tem correlação com o F1 no Marlim (Spearman −0.21, p = 0.46): a
+estratigrafia do `74` sobre o ruído da similaridade dá IoU 0.617 — o mesmo do `dataset_wu` — e F1 0.009. É o que o
+`model_25` já mostrava em 3D (IoU de teste 0.82, o maior da série; F1 0.068 no Marlim).
 
-| configuração | `calm` | `faulted` | `dead` |
+### 2.4 Por quê
+
+Pela cota de Ben-David et al. (2010), o erro no domínio real de uma rede treinada no sintético é
+limitado por $\epsilon_S + d(\mathcal{D}_S, \mathcal{D}_T) + \lambda$: o erro no sintético, a distância
+entre as imagens e $\lambda$, o erro da melhor rede nos dois domínios ao mesmo tempo. A similaridade
+só ataca $d$. $\lambda$ depende de o rótulo sintético marcar o que no real se chama falha, e a régua
+não vê o rótulo. A busca por similaridade encheu o lote de textura parecida com a de Marlim (ruído
+liso e correlacionado, contraste baixo, tiles inteiros sem falha) — e a rede aprendeu que textura
+parecida com Marlim **não é falha**.
+
+É o mesmo diagnóstico de *Learning to Simulate* (Ruiz et al., 2019) e *Meta-Sim* (Kar et al., 2019):
+os parâmetros de um simulador devem ser escolhidos pelo desempenho, num conjunto real rotulado, do
+modelo treinado nos dados dele — não por imitar a distribuição das imagens reais.
+
+## 3. A sonda de transferência
+
+### 3.1 O que ela mede
+
+Para um lote sintético (`N_TILES` = 44 tiles de um genoma):
+
+1. a `ProbeNet` — U-Net 3D de quatro níveis (8, 16, 32, 64 filtros, 0.37 M parâmetros), `GroupNorm`,
+   LeakyReLU e pool que só reduz a inline a partir do segundo nível, o mesmo desenho da `Unet3D_V2` —
+   treina `STEPS` = 2000 passos em blocos de 32 inlines × 128 × 128 sorteados de 40 tiles (lote de 2,
+   AdamW, OneCycle até 2e-3, perda BCE + dice, espelhamento em xline e inline);
+2. ela prediz os blocos **reais** de 32 inlines × 1601 × 2240 em volta da inline anotada de cada
+   patch, remontados dos `.dat` como o `FaultComparer` remonta o slab, em janelas de 128 com passo 64
+   e peso Hann na emenda (o `SlidingWindow` do `1 - Predict.ipynb`), e fica a inline central;
+3. o `FaultComparer` do projeto — **o mesmo** que monta a tabela final (`Marlim/FaultComparer/index.py`)
+   — extrai os sticks e mede recall, detecção, precisão e F1 contra o especialista;
+4. a nota é o **F1 médio nos `PATCHES`** (1200, 1300, 2600); o 1400 (`HOLDOUT`) nunca entra na busca;
+5. os 4 tiles que sobram medem o IoU da sonda no próprio sintético (`iou`): diz se a tarefa é
+   aprendível, não se transfere.
+
+O contexto de 32 inlines não é detalhe. Uma primeira versão 2D (seções soltas, U-Net 2D) ordenava os
+datasets pelo recall como a rede completa, mas disparava em 43% do fundo filtrado contra 13% do
+`model_23`, e pelos sticks punha o `dataset_wu` à frente do `dataset_74` com folga — a rede 3D rejeita
+textura pela continuidade entre inlines, e a 2D não tem como.
+
+Custo medido no P6000: 2000 passos em ~290 s, predição dos 4 patches em ~52 s e sticks em ~20 s —
+**~6 min por avaliação**, com os tiles do próximo genoma sendo gerados na CPU enquanto isso.
+
+### 3.2 Validação contra a rede completa
+
+A sonda só serve de objetivo se ordenar os dados como a `Unet3D_V2` completa (100 épocas) ordena no
+Marlim. Mesma sonda, 44 tiles de cada dado, semente 0:
+
+| dado | F1 da sonda (4 patches) | F1 da sonda (1200) | F1 da rede completa (1200) |
 |---|---|---|---|
-| `Generator2` à mão | 84.3 | 89.1 | 72.8 |
-| busca de 12/09 (21 variáveis) | 84.6 | 91.9 | 74.3 |
-| + nível de ruído medido | 86.0 | 91.9 | 77.7 |
-| + grão de ruído medido | 87.9 | 92.2 | 82.6 |
-| + zona morta sem rótulo de falha | — | — | **83.6** |
-| **referência de 13/09** | **88.0** | **92.2** | **83.6** |
+| `dataset_regions` (similaridade) | **0.063** | 0.084 | **0.072** (`model_25`) |
+| `marlim_opt` | 0.221 | 0.250 | — |
+| `dataset_74` | 0.277 | 0.290 | 0.354 (`model_23`), 0.373 (`Marcia/model_1`) |
+| `dataset_74` + `marlim_opt` | 0.291 | 0.260 | 0.388 (`Marcia/model_5`) |
+| `dataset_wu` | 0.318 | 0.307 | 0.352 (`model_21`), 0.347 (`Marcia/model_2`) |
 
-A zona morta sem rótulo é o último item porque é decisão de conteúdo, não de aparência: a região
-real foi definida sem nenhuma falha anotada por perto, então rótulo ali é rótulo sobre ruído — a
-nota concorda (grupo `rotulo` 73.5 → 100) e o treino ganha negativo puro em vez de alucinação.
+A sonda **separa com folga o dado que fracassa dos que funcionam** — o `dataset_regions` cai para o mesmo
+nível na sonda (0.06–0.08) e na rede completa (0.07), oito desvios abaixo do `dataset_74`, antes de
+gastar as 16 h de treino que o `model_25` custou. Entre os dados que funcionam, a rede completa fica em 0.35–0.39 e a sonda em
+0.26–0.32; essa faixa é da ordem do ruído dos dois lados, e nenhum dos dois ordena os bons entre si
+com confiança. A sonda subestima o F1 dos dados bons (é uma rede de 0.37 M parâmetros com 2000
+passos), mas a ordem dos casos separáveis é a mesma, e o recall × precisão também: o `dataset_74`
+treina uma rede que desenha mais e acerta mais (recall 0.36, precisão 0.23 na sonda; 0.49 e 0.28 na
+completa), o `dataset_wu` uma mais contida (0.30 e 0.37; 0.30 e 0.42).
 
-A distância até o teto (99%) é o espaço que a busca do `Analysis.ipynb` tem para trabalhar.
+A célula `VALIDAÇÃO DA SONDA` do `Analysis.ipynb` refaz a checagem a cada execução, com sementes fixas (reproduz
+bit a bit). Na execução de 19/09/2026:
 
-**Ruído da nota** — o mesmo parâmetro avaliado com conjuntos de sementes diferentes:
+| dado | nota (F1 nos `PATCHES`) | F1 da sonda (1200) | F1 da rede completa (1200) |
+|---|---|---|---|
+| `dataset_74` | 0.346 | 0.300 | 0.354 |
+| `dataset_wu` | 0.291 | 0.287 | 0.352 |
+| `SIMILAR` (o dado do `model_25`, regerado das opções dele) | **0.105** | 0.179 | **0.072** |
+| `REFERENCE`, três sementes | 0.329 / 0.253 / 0.327 | | |
 
-| tiles por lote | 8 | 12 | 15 | 18 | 20 | 24 |
+### 3.3 Ruído, piso e teto
+
+**Ruído.** Seis avaliações do `dataset_74` com sorteios diferentes: F1 dos `PATCHES` 0.285 ± 0.026. Com os
+mesmos tiles e só a semente do treino mudando o desvio já é 0.031 — o ruído é o treino, não o lote. O
+patch de teste, sozinho, oscila mais (±0.039). Por métrica, nas mesmas avaliações:
+
+| métrica da sonda | desvio entre sementes | desvio entre dados | razão |
+|---|---|---|---|
+| **F1** | 0.026 | 0.106 | **4.1** |
+| recall | 0.094 | 0.133 | 1.4 |
+| detecção | 0.101 | 0.123 | 1.2 |
+| recall de pixel (≥ 0.5 a 4 px) | 0.108 | 0.144 | 1.3 |
+| AUC de pixel | 0.035 | 0.023 | 0.7 |
+
+O recall sozinho oscila 3.6 vezes mais que o F1: de uma semente para outra a sonda anda ao longo da
+curva recall × precisão, e o F1 é quase invariante a esse deslocamento. É a métrica com melhor relação
+sinal/ruído que ainda mede o que se cobra (a precisão sozinha tem razão maior, mas premiaria o
+`dataset_regions`, que tem a maior precisão de todas — 0.67 — sem detectar nada).
+
+**Piso.** Um lote que não ensina nada dá F1 perto de zero: a estratigrafia e a wavelet do `74` sobre o
+ruído da similaridade dão 0.009. **Teto.** Não há teto medido acima dos dados reais do projeto; o melhor
+F1 da sonda até aqui é o do `dataset_wu`, 0.318, e o da rede completa 0.407 (`model_24`, Fault-Seg-Net).
+
+**Reprodutibilidade.** A sonda é determinística por semente (cuDNN determinístico, sorteios por
+`default_rng(seed)`), e a mesma configuração do gerador, com sementes diferentes, reproduz o
+`dataset_74` gravado a 0.004 de F1 (0.281 contra 0.277).
+
+**Tiles sem falha, de novo, sobre a configuração boa.** Trocando 8 dos 40 tiles de treino por 4 `calm`
+e 4 `dead` do `dataset_regions` antigo:
+
+| configuração | F1 | recall | precisão |
+|---|---|---|---|
+| `74` com z-score | 0.281 | 0.357 | 0.248 |
+| `74` com z-score + 20% de tiles sem falha | 0.282 | 0.272 | 0.318 |
+| `74` com ganho por região | 0.244 | 0.239 | 0.262 |
+| `74` com ganho por região + 20% de tiles sem falha | 0.209 | 0.164 | 0.313 |
+
+Os tiles sem falha não melhoram o F1 em nenhum dos dois casos (diferenças dentro do ruído de 0.026) e
+tiram 0.08 de recall — trocam detecção por precisão, e o que faltava no Marlim era detecção. O dado
+novo não tem tile sem falha.
+
+## 4. O que a sonda mostrou sobre o gerador
+
+Ablações com a sonda (semente 0, 2000 passos, 40 tiles de treino, F1 médio nos 4 patches), partindo
+da configuração `faulted` que a busca por similaridade escolheu e trocando **um grupo de parâmetros
+por vez** pelo valor do `dataset_74`:
+
+| variante | F1 | recall | precisão | o que mostra |
+|---|---|---|---|---|
+| `dataset_regions` inteiro (o dado do `model_25`) | 0.063 | 0.033 | 0.733 | reproduz o fracasso do 3D (0.068) |
+| `faulted` + estratigrafia e wavelet do `74` | **0.009** | 0.004 | 0.250 | interação forte: sozinha, a wavelet fina derruba tudo |
+| `faulted` com z-score no lugar do ganho | 0.109 | 0.060 | 0.747 | normalização não é o problema |
+| `faulted` só, sem os tiles `calm` e `dead` | 0.164 | 0.096 | 0.568 | os 23% de tiles sem falha derrubam o recall |
+| `faulted` + dobra do `74` | 0.198 | 0.138 | 0.437 | efeito pequeno |
+| `faulted` + 5–9 falhas por tile (era 2–3) | 0.264 | 0.256 | 0.278 | mais falha por tile, como pede Wu et al. (2019) |
+| `faulted` + ruído do `74` | 0.285 | 0.187 | 0.616 | o ruído liso da busca imitava falha |
+| configuração do `74` regerada, z-score | 0.281 | 0.357 | 0.248 | — |
+| `dataset_74` (arquivos) | 0.277 | 0.363 | 0.233 | o gerador reproduz o dataset a 0.004 |
+| `dataset_wu` (arquivos) | 0.318 | 0.297 | 0.366 | — |
+
+Três conclusões saem daqui e entram no desenho:
+
+- **Todo tile leva falha.** Tile sem falha no lote não ensina a rede a ignorar o fundo de Marlim: ensina
+  que o fundo de Marlim não tem falha. É também a recomendação do FaultSeg3D ("images with more
+  faults are more effective than those with fewer faults... we add more than five faults within a
+  training image", Wu et al., 2019).
+- **O ruído liso e correlacionado que a similaridade pedia é o que mais atrapalha** — sozinho, trocá-lo
+  sobe o F1 de 0.16 para 0.29. Ele reproduz a textura descontínua de Marlim sem rótulo, e a rede
+  aprende a ignorar descontinuidade.
+- **Os fatores não somam.** A wavelet fina do `74` é boa com o ruído do `74` (0.28) e péssima com o ruído
+  da similaridade (0.009). É por isso que a busca mexe no gerador inteiro de uma vez, em vez de ajustar
+  um fator de cada vez.
+
+**Normalização.** A `Unet3D_V2` e a sonda começam com convolução sem bias seguida de `GroupNorm`, então
+multiplicar a entrada por uma constante não muda a saída. Casar o σ de cada região real só mexe em
+**quanto satura**: com o ganho do `faulted` (0.131) e jitter 0.52, um tile de jitter alto satura já em
+|z| > 1.2 e ceifa as ondículas. O dado novo usa ganho 1 sobre o tile z-scorado e trilho `RAIL` = 2.42
+(o p01/p99 que o `Format.ipynb` do `dataset_74` mediu), o que satura ~1.5% dos voxels.
+
+## 5. A busca
+
+CMA-ES (`NatureSelector('genetic')`, Hansen & Ostermeier 2001 com IPOP) sobre **25 variáveis do
+gerador inteiro** — estratigrafia, dobra, mergulho regional, número, rejeito e mergulho das falhas,
+wavelet e nível e grão do ruído —, normalizadas em [0, 1] numa caixa em volta da `REFERENCE`
+(meia-largura `SPREAD` = 0.25 da faixa global, no mínimo ±1 nas inteiras). Fora do genoma, no padrão
+da classe: rugosidade e alcance do rejeito, espessura e limiar do rótulo e a falha lístrica — os
+botões de forma que já tinham sido medidos sem efeito sobre o contraste da falha.
+
+Cinco decisões, cada uma contra um defeito medido da busca anterior:
+
+- **A primeira nuvem nasce na `REFERENCE`.** O CMA-ES do `Nature` sorteava a média inicial na caixa;
+  com avaliação de minutos isso joga fora gerações inteiras. O `CMAES` ganhou o argumento `mean`
+  (só a primeira nuvem; os reinícios IPOP continuam sorteando), conferido bit a bit contra a versão
+  anterior quando não é passado. A `REFERENCE` é a configuração do `dataset_74`, a de melhor
+  transferência medida em 3D.
+- **Sementes comuns dentro da geração, sementes novas entre gerações.** O CMA-ES só usa a ordem dos
+  indivíduos dentro da geração; todos recebem as mesmas sementes de tiles e de treino (números
+  aleatórios comuns), o que tira da comparação o ruído que não depende do genoma. A semente vem do
+  hash da população, então cada geração sorteia de novo e a retomada repete a mesma. A busca antiga
+  usava sempre as mesmas sementes, e decorava o lote: 97.1 na busca contra 85.2 fora dela no `faulted`.
+- **A decisão é refeita fora da busca.** A melhor nota de uma busca ruidosa é otimista por construção
+  — a maldição do otimizador (Smith & Winkler, 2006). As `MÉTRICAS FINAIS` reavaliam a `REFERENCE`, o
+  melhor indivíduo e a média final da nuvem nas mesmas `CHECK_SEEDS`, que a busca nunca usou.
+- **A `REFERENCE` só perde por mais que o erro.** Fica o candidato de maior nota média, desde que o
+  ganho pareado sobre a `REFERENCE` passe do erro padrão desse ganho; senão fica a `REFERENCE`. Rodar
+  de novo nunca produz um dado pior que o de referência.
+- **Um patch fica de fora.** O 1400 não entra em nenhuma nota da busca; ele é o teste de que o gerador
+  não se ajustou às anotações dos outros três.
+
+## 6. A campanha de 19-20/09/2026
+
+64 avaliações (8 indivíduos × 8 gerações, 8 h 06 min), caixa de ±25% em volta da configuração do `dataset_74`.
+Melhor nota de cada geração: 0.350, 0.338, 0.313, 0.324, 0.349, 0.338, 0.337 — **plana dentro do ruído** (σ 0.03) em volta
+do nível da referência (0.305 ± 0.020 em 4 sementes). O passo do CMA-ES caiu de 0.25 para 0.19, ou seja, a nuvem se
+fechou sem achar direção de ganho.
+
+Decisão final, em 4 sementes que a busca nunca viu, com os três candidatos nas mesmas sementes:
+
+| candidato | nota | holdout (1400) | recall | precisão | ganho sobre a referência | erro do ganho |
 |---|---|---|---|---|---|---|
-| desvio da nota | 2.4 | 1.3 | 1.1 | 1.3 | 1.2 | 0.9 |
-| nota média | 86.5 | 84.8 | 84.3 | 84.1 | 84.1 | 83.6 |
+| **referência** (config do `dataset_74`) | **0.3050** | 0.2175 | 0.418 | 0.263 | — | — |
+| melhor indivíduo da busca | 0.2857 | 0.2360 | 0.404 | 0.232 | −0.019 | 0.007 |
+| média final da nuvem | 0.3174 | 0.2682 | 0.426 | 0.264 | +0.012 | 0.025 |
 
-Daí a escolha de **18 tiles**: dentro da faixa pedida (15–20), com ruído de ~1 ponto — menor que a
-diferença entre configurações que interessa distinguir — e custo de 30–60 s por avaliação. Abaixo de
-12 tiles o ruído dobra e a nota ainda fica enviesada para cima (com 8 tiles ela dá 2.4 pontos a mais
-que com 24, porque sobra pouca amostra para o termo `C` da fórmula). Dentro da busca as sementes são
-**fixas**, então a mesma configuração devolve sempre a mesma nota e o CMA-ES vê uma superfície
-determinística; no fim, a melhor configuração é reavaliada com sementes novas para conferir que a
-nota não era sorte daquele conjunto.
+O melhor indivíduo marcou **0.3527 dentro da busca e 0.2857 fora dela** — a maldição do otimizador medida em casa: a
+vantagem dele era ruído, e ele fica **abaixo** da referência em sementes novas. A média da nuvem ficou 0.012 acima da
+referência, menos que o erro padrão do ganho (0.025), então a regra manteve a referência. **O dado gravado é a
+configuração do `dataset_74`, com 220 tiles, todos com falha, z-scorados e saturados em ±2.42.**
 
-## 8. Como a busca usa a nota
+Isso é um resultado, não um fracasso da busca: em 64 avaliações a vizinhança da melhor configuração conhecida não tem
+ganho acima do ruído da sonda, e a metodologia **impediu** que um ganho aparente de 0.05 virasse um dataset pior.
+Quem quiser continuar tem `EXTEND = True` (a campanha retoma do checkpoint) e o caminho medido para baixar o ruído:
+avaliar cada genoma em duas sementes custa o dobro e divide o desvio por 1.4.
 
-O `Analysis.ipynb` maximiza esta nota com CMA-ES (`NatureSelector('genetic', …)`), uma região por
-célula. Três detalhes fazem a diferença entre a nota funcionar ou não como objetivo:
+Verificação no dado gravado (sonda treinada nos 220 tiles, 4 patches):
 
-- **só 24 variáveis, as que separam uma região da outra.** Os padrões do `SyntheticGenerator` são a
-  configuração boa do `dataset_74` e `set()` troca só as chaves passadas, então a busca mexe em
-  estratigrafia, dobramento, wavelet, ruído (nível e grão), quantidade de falha e no jitter de
-  contraste, mais o `foldAspect` — o alongamento da dobra no eixo da inline, que é a única alavanca
-  do gerador sobre a anisotropia lateral: sem ele `sigmaX` e `sigmaY` saem da mesma faixa com `theta`
-  sorteado, e o campo de dobra fica isotrópico por construção. O bloco de falha (rejeito, mergulho, rugosidade, arrasto, curvatura, espessura e limiar
-  do rótulo), o `foldBaseShift`, o `shearOffset` e o `waveletDt` ficam no padrão: são iguais nas três
-  regiões e já estão calibrados. Cada dimensão que sai da disputa é orçamento que sobra para as que
-  importam — e a seção 10 mostra a medição que justifica deixar o bloco de falha de fora. No
-  `dead` o `faultCount` também sai da disputa (`FIXED`), fixo em (0, 1): a régua **premia** pôr
-  falha ali, porque o crosshatch de migração deixa a zona morta descontínua e falha sintética
-  aproxima `discFrac`/`lineDens` — medido, o grupo `falhas` vai de 83 para 87 e a nota de 87.6
-  para 89.5. Mas o rótulo viria sobre ruído que o especialista nunca anotou, e o treino ganha
-  alucinação em vez de negativo puro. Os 1.9 pontos são o preço de não mentir para a rede.
-- **sementes fixas na busca, sementes novas na decisão.** O lote de 18 tiles sai sempre das mesmas
-  sementes, então o CMA-ES enxerga uma superfície determinística em vez de ruído — mas acaba
-  aprendendo os defeitos daquele conjunto: no `calm` a busca marcou 88.0% nas sementes dela e 82.9%
-  fora. Por isso a escolha final é feita num lote de sementes novas, entre **três** candidatas — o
-  achado da busca, a referência e o que já estava no `regions.json` —, e o arquivo guarda as duas
-  notas (`score` fora, `scoreSearch` dentro) e o `source`. Incluir o que já estava gravado é o que
-  torna a campanha monótona: rodar de novo só pode melhorar.
-- **ganho fora do genoma.** Resolvido por bisseção contra o σ da região antes de medir, como na
-  seção 5 — uma dimensão a menos e a nota medindo textura, estrutura e falha. O sorteio de contraste
-  do lote (`gainJitter`) é **normalizado pela mediana** antes da bisseção: sem isso o ganho absorve o
-  viés daquele sorteio (em 18 tiles a mediana chega a 1.17) e só vale para um lote daquele tamanho —
-  o dataset de 220 tiles por região sairia 13% mais fraco que o bloco real.
-- **o melhor ponto conhecido é o de partida.** Mesmo com 23 variáveis, a caixa larga é espaço demais
-  para poucas centenas de avaliações: partindo de um ponto aleatório, 32 avaliações chegaram a 72% no
-  `calm`, contra os 84% que o genoma do `Generator2.ipynb` já dá. Por isso existe a constante
-  `Generator.REFERENCE` — o melhor genoma conhecido de cada região, que começou sendo a configuração
-  calibrada à mão no `Generator2.ipynb` e é corrigido sempre que uma medição controlada acha algo
-  melhor (o `faultCount` do `faulted` em 12/09, o nível e o grão do ruído das três em 13/09). A caixa
-  de cada região é uma vizinhança dele (`SPREAD`, por região) e ele disputa a escolha final. A pasta
-  da memória leva a largura da caixa no nome: o estado do CMA-ES está em unidades reais, então
-  retomar uma campanha com outra caixa partiria de uma média fora dela.
-- **nenhuma configuração fora do notebook.** A `REFERENCE` é constante de classe, não arquivo: o
-  notebook roda sozinho numa pasta limpa e a única coisa que ele lê de fora são os tiles reais.
-  `regions.json` é saída — quando já existe, o que está lá entra como terceira candidata.
+| patch | recall | detecção | precisão | F1 |
+|---|---|---|---|---|
+| 1200 | 0.462 | 0.455 | 0.221 | 0.299 |
+| 1300 | 0.568 | 0.500 | 0.167 | 0.258 |
+| 2600 | 0.477 | 0.567 | 0.321 | 0.384 |
+| **1400 (fora da busca)** | 0.424 | 0.444 | 0.173 | 0.246 |
 
-Custo: ~30–50 s por avaliação (18 tiles 128³ em 18 processos), ~60 min por chamada de 84
-avaliações e por região. A memória do `NatureSelector` deixa a campanha ser retomada e estendida.
+A similaridade do dado gravado contra as regiões reais é 77.6 (`faulted`), 61.6 (`calm`) e 61.2 (`dead`) — abaixo dos
+94.4 do dado que a busca por similaridade gerava, que é exatamente o ponto.
 
-## 9. Como ler o resultado
+## 7. A similaridade como diagnóstico
 
-`Similarity.groups(região, features)` devolve a nota por grupo e `Similarity.info(...)` a tabela por
-feature, com o valor mediano dos dois lados. É por ela que se enxerga o que corrigir. Exemplo real
-(configuração `calmo` do `Generator2`, nota 83.3):
+A classe `ImageSimilarity` continua no notebook, com a mesma régua de 33 atributos, o mesmo
+coeficiente de energia e a mesma calibração real × real — ela diz **o quanto um lote se parece com
+cada região**, o que continua útil para ler um dado (é ela que mostra, por exemplo, que o sintético
+novo é mais contrastado e mais limpo que o `faulted` real). O que mudou é o papel: ela não guia mais
+a busca, pelas medições da seção 2.
 
-```
-amplitude 88.5 | estrutura 87.5 | rotulo 84.6 | espectro 84.3 | continuidade 78.0 | falhas 78.0
+A estatística é a de Rizzo & Székely (2016): para cada atributo,
 
-feature     sim    real   synth
-discFrac    45.8   0.004  0.142   <- o sintético tem 35x mais descontinuidade que o calmo real
-lag16       66.5   0.453  0.131   <- refletor sintético não se sustenta lateralmente
-lineDip     68.5   78.4   66.1    <- os lineamentos sintéticos são menos íngremes
-Px1         68.7   0.223  0.414   <- dobra sintética curta demais
-```
+$$H = \frac{2A - B - C}{2A + \varepsilon}, \qquad \mathrm{sim} = 100\,(1 - H),$$
 
-Lido assim, o diagnóstico já diz o que a busca tem de fazer no `calm`: menos ruído, dobra mais larga
-e camada mais contínua lateralmente.
+com $A$ a distância média entre os dois lados, $B$ e $C$ as dispersões internas e
+$\varepsilon = 0.25 \times \max(\mathrm{IQR}_{\text{região}}, 0.05 \times \mathrm{IQR}_{\text{bloco}})$;
+média aritmética dentro de cada grupo (`amplitude` 0.15, `espectro` 0.20, `estrutura` 0.20,
+`continuidade` 0.15, `falhas` 0.30) e média geométrica ponderada entre grupos. Calibração real × real
+(`Analysis.ipynb`, célula de calibração): diagonal 97–99, regiões vizinhas 73–81, opostas 51–52.
 
-## 10. A falha rotulada serve para treinar?
+## 8. Limites conhecidos
 
-A nota mede semelhança, mas o produto final é um detector de falha. Então vale olhar a geometria do
-rótulo na seção central, medida com o mesmo código, nos dois datasets que já funcionam e na anotação
-do especialista:
+- **A anotação é parcial.** O especialista anota só as falhas principais, então a precisão é limite
+  inferior, e o F1 favorece um detector que marque só o que ele marcaria. É o que se quer
+  reproduzir, mas uma falha secundária verdadeira achada pela rede conta como erro.
+- **Quatro seções.** A nota vem de três inlines anotadas (a quarta é o teste). O gerador tem 25
+  variáveis globais e as três seções têm 87 falhas anotadas, então o risco de sobreajuste é pequeno,
+  mas não é zero — é para isso que o 1400 fica de fora.
+- **A sonda não é a rede.** Ela ordena os dados como a `Unet3D_V2` completa nos casos medidos, mas
+  subestima o F1 dos dados bons (0.28 contra 0.36 no `dataset_74`) e não resolve diferenças menores
+  que o ruído dela; diferença pequena entre dois dados bons só se decide treinando a rede completa.
+- **Mergulho aparente.** O azimute das falhas continua uniforme em `applyFault`, então parte das
+  falhas cruza a inline quase deitada; o especialista não anota abaixo de ~40°.
+- **O traço predito sai picado porque o dado real é assim.** Ao longo do traço do especialista no 1200, onde a rede
+  cobre, a descontinuidade da sísmica (1 − semblance com mergulho, máximo em 4 px) é 0.203; onde não cobre, 0.082, com a
+  mesma amplitude local. As bordas das lacunas caem nas emendas dos tiles na taxa do acaso (0.130 contra 0.150), então
+  não é artefato de remontagem. É o `FaultStickExtractor`, que costura lacunas de até 59 px, que fecha o traço.
+- **A busca não resolve diferenças pequenas.** Com ruído de 0.03 por avaliação, distinguir dois dados que diferem 0.02
+  exigiria repetir cada avaliação; a campanha de 64 avaliações mede isso e para na referência quando não há ganho.
 
-| conjunto | fração rotulada | visibilidade | mergulho | comprimento | traços | seções sem rótulo |
-|---|---|---|---|---|---|---|
-| `dataset_74` (40 tiles) | 7.3% | 3.96 | 62° | 133 px | 2 | 0% |
-| `dataset_wu` (40 tiles) | 7.6% | 2.57 | 69° | 136 px | 2 | 0% |
-| Marlim `faulted`, especialista | 3.6% | 2.27 | 68° | 150 px | 2 | 0% |
-| `faulted` calibrado | 3.4% | 17.7 | 58° | 114 px | 2 | 6% |
-| `calm` calibrado | 0% | — | — | — | — | 100% |
-| `dead` calibrado | 0.1% | 50.6 | 52° | 99 px | 1 | 50% |
-
-Mergulho, comprimento e número de traços por seção já eram os mesmos nos três primeiros — a
-densidade é que difere, e por um motivo conhecido: **o especialista anota só as falhas principais**,
-então 3.6% é piso, não alvo.
-
-**A nota premia a quantidade certa de falha.** Varrendo só o `faultCount` do `faulted` e mantendo
-todo o resto da referência:
-
-| `faultCount` | nota | grupo `falhas` | grupo `rotulo` | fração rotulada | seções sem rótulo |
-|---|---|---|---|---|---|
-| (0, 1) | 75.0 | 68 | 24 | 0% | 100% |
-| (1, 3) | 88.8 | 79 | 82 | 1.9% | 11% |
-| **(2, 5)** | **91.1** | **82** | **86** | **4.4%** | **0%** |
-| (4, 7) | 90.8 | 80 | 85 | 5.9% | 0% |
-| (6, 10) | 89.7 | 81 | 81 | 7.2% | 0% |
-
-O máximo cai onde a densidade fica entre o especialista e o `dataset_74`, e a nota desaba 16 pontos
-se a região ficar sem falha — a métrica não é enganável nesse ponto. Foi por essa medição que o
-`Generator.REFERENCE` do `faulted` passou de `faultCount` (1,3) para (2,5).
-
-**O que ainda não está certo é a visibilidade: 17.7 contra 2.3 do real.** A conta é uma razão, e o
-que está fora não é o numerador, é o denominador: o fundo sintético é limpo demais (`coh50` 0.97
-contra 0.93), então qualquer corte vira um degrau óbvio. Para o treino isso significa falha fácil —
-o `dataset_74` está em 3.96 e o `dataset_wu` em 2.57, os dois que transferem.
-
-**A forma da falha não conserta isso; o fundo conserta.** Medido em 13/09/2026 sobre a configuração
-gravada do `faulted`, variando um botão de cada vez:
-
-| botão | nota | `visibility` | `discSharp` |
-|---|---|---|---|
-| padrão (`faultRoughness` 3.54, `faultRoughSigma` 8.55) | 91.9 | 17.7 | 62.4 |
-| `faultRoughness` 8 / 14 | 91.7 | 17.4 / 17.5 | 62.6 / 62.1 |
-| `faultRoughness` 14 + `faultRoughSigma` 3 | 91.7 | 17.2 | 62.2 |
-| `faultDecaySigma` (15, 30) | 91.5 | 16.3 | 61.1 |
-| ruído (0.10, 0.35) no lugar de (0.04, 0.18) | 90.8 | **5.6** | 18.6 |
-
-Nenhum botão de forma da falha tira a visibilidade de 17 — eles mexem no corte, e o problema está no
-que está **em volta** do corte. Subir o ruído leva a visibilidade direto para a faixa do
-`dataset_74`, ao custo de estourar a descontinuidade de fundo (`discFrac` 0.081 contra 0.033 do
-real), que é justamente o que o grupo `falhas` pune. Foi por isso que o nível e o **grão** do ruído
-entraram na busca (23 variáveis) e os botões de falha ficaram fora: a busca agora tem a alavanca
-certa e a guarda que faltava em 2026-08-17 — a própria `visibility` e o grupo `falhas`, que não
-deixam trocar rótulo visível por rótulo bonito sobre imagem lisa.
-
-## 11. Limites conhecidos
-
-- A anotação do especialista cobre **uma inline por tile** e só as falhas principais, então
-  `maskFrac` é um piso, não a verdade. É por isso que o grupo `rotulo` pesa 0.10 e o grupo `falhas`,
-  que não depende de rótulo, pesa 0.20.
-- A régua é de segunda ordem: compara distribuições de atributos, não a aparência completa. Duas
-  imagens com as mesmas 37 features podem ainda ser diferentes ao olho — por isso o notebook fecha
-  com uma comparação visual lado a lado.
-- **A nota é o que se quer parecer, não necessariamente o que se quer treinar.** O caso concreto é a
-  `visibility` do `faulted`: o real marca 2.3 porque o especialista desenha a falha onde a
-  interpretação manda, não onde a semblance quebra. Perseguir 2.3 até o fim seria rotular falha
-  invisível. O `dataset_74` (3.96) e o `dataset_wu` (2.57), que são os dois que transferem, dizem
-  qual é a faixa sadia — use-a como banda de sanidade ao ler o resultado, não como alvo da busca.
-- O teto de 99% e não 100% é o ruído de amostragem de 18 tiles, não um defeito do gerador.
-- A nota é relativa ao conjunto real usado como referência. Trocar o critério de separação das
-  regiões (`../Marlim/Analysis.ipynb`) muda a escala.
-
-## 12. Fontes
+## 9. Fontes
 
 Verificadas durante este trabalho:
 
-- Rizzo, M. L. & Székely, G. J. (2016). *Energy distance*. **WIREs Computational Statistics** 8(1),
-  27–38. doi:10.1002/wics.1375 — definição de $D^2$, do coeficiente normalizado $H$ (p. 29) e da
-  equivalência com a distância de Cramér em 1D.
-- Xu, Q., Huang, G., Yuan, Y., Guo, C., Sun, Y., Wu, F. & Weinberger, K. (2018). *An empirical study
-  on evaluation metrics of generative adversarial networks*. arXiv:1806.07755 — MMD e 1-NN são as
-  métricas que satisfazem as propriedades desejáveis, **desde que num espaço de features adequado**.
-- Bińkowski, M., Sutherland, D. J., Arbel, M. & Gretton, A. (2018). *Demystifying MMD GANs*.
-  ICLR 2018, arXiv:1801.01401 — KID, estimador não enviesado de MMD².
-- Lopez-Paz, D. & Oquab, M. (2016). *Revisiting classifier two-sample tests*. arXiv:1610.06545 —
-  C2ST: acurácia próxima do acaso sob a hipótese nula.
-- Quesada, J. et al. (2025). *A large-scale benchmark on geological fault delineation models:
-  domain shift, training dynamics, generalizability, evaluation and inferential behavior*.
-  arXiv:2505.08585 — o benchmark **não** usa métrica formal de domain shift entre sintético e campo;
-  compara desvio-padrão de intensidade e densidade de falha de forma qualitativa. É a lacuna que
-  esta função preenche.
-- Wu, X., Liang, L., Shi, Y. & Fomel, S. (2019). *FaultSeg3D: using synthetic data sets to train an
-  end-to-end convolutional neural network for 3D seismic fault segmentation*. **Geophysics** 84(3),
-  IM35–IM45 — a referência do treino com sintético que este projeto segue.
-
-Base bibliográfica dos atributos (referências clássicas da área, não refetchadas agora):
-
-- Bahorich, M. & Farmer, S. (1995). *3-D seismic discontinuity for faults and stratigraphic
-  features: the coherence cube*. **The Leading Edge** 14(10), 1053–1058.
-- Marfurt, K. J., Kirlin, R. L., Farmer, S. L. & Bahorich, M. S. (1998). *3-D seismic attributes
-  using a semblance-based coherency algorithm*. **Geophysics** 63(4), 1150–1165.
-- Van Vliet, L. J. & Verbeek, P. W. (1995). *Estimators for orientation and anisotropy in
-  digitized images*; Fehmers, G. C. & Höcker, C. F. W. (2003). *Fast structural interpretation with
-  structure-oriented filtering*. **Geophysics** 68(4), 1286–1293 — tensor de estrutura.
-- Hale, D. (2013). *Methods to compute fault images, extract fault surfaces, and estimate fault
-  throws from 3D seismic images*. **Geophysics** 78(2), O33–O43.
-- Gretton, A., Borgwardt, K., Rasch, M., Schölkopf, B. & Smola, A. (2012). *A kernel two-sample
-  test*. **JMLR** 13, 723–773; Sejdinovic, D., Sriperumbudur, B., Gretton, A. & Fukumizu, K. (2013).
-  *Equivalence of distance-based and RKHS-based statistics in hypothesis testing*. **Annals of
-  Statistics** 41(5), 2263–2291 — energia e MMD são a mesma estatística com o kernel de distância.
-- Heusel, M., Ramsauer, H., Unterthiner, T., Nessler, B. & Hochreiter, S. (2017). *GANs trained by a
-  two time-scale update rule converge to a local Nash equilibrium*. NeurIPS 2017 — FID.
-- Haralick, R. M., Shanmugam, K. & Dinstein, I. (1973). *Textural features for image
-  classification*. **IEEE Trans. SMC** 3(6), 610–621; Portilla, J. & Simoncelli, E. P. (2000).
-  *A parametric texture model based on joint statistics of complex wavelet coefficients*.
-  **IJCV** 40(1), 49–70 — a ideia de descrever textura por um conjunto de estatísticas.
-
-Dentro do projeto: `../Marlim/Analysis.ipynb` (como as três regiões reais foram separadas),
-`../../Generator2.ipynb` (a régua de 40 features que deu origem a esta) e a lição de 2026-08-17
-sobre calibrar falha pela estatística da máscara.
+- Ben-David, S., Blitzer, J., Crammer, K., Kulesza, A., Pereira, F. & Vaughan, J. W. (2010). *A theory
+  of learning from different domains*. **Machine Learning** 79, 151–175 — a cota do erro no alvo.
+- Ruiz, N., Schulter, S. & Chandraker, M. (2019). *Learning to simulate*. ICLR 2019, arXiv:1810.02513 —
+  ajustar os parâmetros de um simulador pelo desempenho do modelo treinado nele, "rather than
+  mimicking the real data distribution".
+- Kar, A. et al. (2019). *Meta-Sim: learning to generate synthetic datasets*. ICCV 2019,
+  arXiv:1904.11621 — distância de distribuição mais um meta-objetivo de desempenho num conjunto
+  real rotulado.
+- Esteban, C., Hyland, S. L. & Rätsch, G. (2017). *Real-valued (medical) time series generation with
+  recurrent conditional GANs*. arXiv:1706.02633 — a avaliação TSTR (treinar no sintético, testar no real).
+- Smith, J. E. & Winkler, R. L. (2006). *The optimizer's curse: skepticism and postdecision surprise in
+  decision analysis*. **Management Science** 52(3), 311–322 — por que a melhor nota da busca é otimista.
+- Tobin, J. et al. (2017). *Domain randomization for transferring deep neural networks from
+  simulation to the real world*. IROS 2017, 23–30.
+- Wu, X., Liang, L., Shi, Y. & Fomel, S. (2019). *FaultSeg3D*. **Geophysics** 84(3), IM35–IM45 —
+  mais de cinco falhas por imagem de treino (p. IM37).
+- Wu, X., Geng, Z., Shi, Y., Pham, N., Fomel, S. & Caumon, G. (2020). *Building realistic structure
+  models to train convolutional neural networks for seismic structural interpretation*.
+  **Geophysics** 85(4), WA27–WA39.
+- Di, X. et al. (2026). *FaultEdgeFormer*. **Journal of Geophysics and Engineering** 23(4), 1285–1311
+  (em `Articles/`) — a faixa de frequência do sintético deve cobrir a do real; rejeito 0–20 amostras,
+  mergulho 45°–90°, ruído de 5 a 25 dB.
+- Cunha, A., Pochet, A., Lopes, H. & Gattass, M. (2020). *Seismic fault detection in real data using
+  transfer learning from a convolutional neural network pre-trained with synthetic seismic data*.
+  **Computers & Geosciences** 135, 104344 — ajuste fino com poucas seções reais (não usado aqui; ver o relatório).
+- Rizzo, M. L. & Székely, G. J. (2016). *Energy distance*. **WIREs Computational Statistics** 8(1), 27–38.
+- Hansen, N. & Ostermeier, A. (2001). *Completely derandomized self-adaptation in evolution strategies*.
+  **Evolutionary Computation** 9(2), 159–195.

@@ -41,8 +41,8 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
 2. **`Dataset/<nome>/Format.ipynb`.** Lê `original/*/images|masks`, normaliza para `[0,1]` e grava `images/`, `masks/` e
    o `DataBase.csv` (`id`, estatísticas, `shape`, `img_path`/`mask_path` absolutos). Também reescreve
    `Task/info.json` com o nome do dataset. A normalização é `clip(p01, p99)` do conjunto inteiro reescalado para
-   `[0,1]`; em dataset por região (`dataset_regions`) os trilhos são o `clip` **declarado** no `synthetic.json`, porque
-   o percentil da amostra cairia dentro deles e mudaria com o número de tiles de cada região.
+   `[0,1]`; no `dataset_regions` os trilhos são o `clip` **declarado** no `synthetic.json` (±2.42 sobre o tile
+   z-scorado, o p01/p99 que o `Format` do `dataset_74` mediu), para a escala não depender da amostra.
 3. **`Task/info.json`** é a configuração única da rodada (`network`, `dataset`, `img_size`, `lr`, `loss`, `batch_size`,
    `scheduler`, `dropout`, `num_filters`), lida como `OPTIONS` pelo `Model/Analysis.ipynb`.
 4. **`Model/Analysis.ipynb`** — o notebook de treino. Split com ~4,5% para validação e ~4,5% para teste (num dataset de
@@ -56,17 +56,23 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
 6. **`Marlim/1 - Predict.ipynb`** — bloco real. Lê `Dataset/marlim/patch_<id>/*.dat` (float32 cru, shape no
    `patch_metadata.json`), roda `SlidingWindow` **na janela em que a rede foi treinada** (peso de Hanning na emenda,
    `OVERLAP` configurável) e grava as máscaras em `Model/Backup/model_N/marlim/patch_<id>/masks` + `predict.json`.
-7. **`Marlim/2 - Analysis.ipynb`** — remonta o volume predito, extrai sticks (`FaultStickExtractor`) e compara com a
-   interpretação do especialista (`Marlim/files/patches/<id>/<id>_interpretado.png`) pelo `FaultComparer`; sai figura
-   em `Marlim/files/comparisons/` e o CSV `sticks_report_<base>.csv`.
+7. **`Marlim/2 - Analysis.ipynb`** — remonta o volume predito, extrai sticks e compara com a interpretação do
+   especialista (`Marlim/files/patches/<id>/<id>_interpretado.png`); sai figura em `Marlim/files/comparisons/` e o CSV
+   `sticks_report_<base>.csv`. O `FaultStickExtractor` e o `FaultComparer` moram em `Marlim/FaultComparer/index.py`,
+   porque a calibração do gerador mede os lotes sintéticos com a mesma métrica.
 8. **`Marlim/Regions/Marlim/Analysis.ipynb`** separa o bloco real em tiles `calm`/`faulted`/`dead` por conteúdo
    (semblance, envelope RMS, distância da falha anotada) → `files/<região>/*.npy` + `files/DataBase.csv`.
-9. **`Marlim/Regions/Synthetic/Analysis.ipynb`** calibra o gerador região a região: `ImageSimilarity` dá uma nota em %
-   entre o lote sintético e os tiles reais da região, e o `NatureSelector` busca o genoma que maximiza a nota. O
-   `README.md` da pasta documenta a função de similaridade (régua de atributos, coeficiente de energia, calibração das
-   notas) — leia antes de mexer nela. As campanhas ficam em `files/memory/<região>_<hash>/` e são retomáveis.
+9. **`Marlim/Regions/Synthetic/Analysis.ipynb`** calibra o gerador pela **sonda de transferência**: para cada genoma,
+   uma U-Net 3D pequena (`ProbeNet`) treina 2000 passos em 44 tiles sintéticos e prediz os blocos reais de 32 inlines
+   em volta das inlines anotadas; a nota é o F1 de sticks do `FaultComparer` nos patches 1200/1300/2600 (o 1400 fica
+   fora da busca). CMA-ES partindo da configuração do `dataset_74`, sementes comuns dentro da geração, decisão final
+   reavaliada em sementes novas; grava o `Dataset/dataset_regions` (220 tiles, todos com falha). A `ImageSimilarity`
+   (régua de atributos, coeficiente de energia) continua como diagnóstico: medido, a nota de similaridade anda ao
+   contrário do resultado no Marlim. O `README.md` da pasta tem as medições — leia antes de mexer no objetivo. As
+   campanhas ficam em `files/memory/transfer_<hash>/` e são retomáveis.
 10. **`Nature/`** — framework mono-objetivo de otimização usado pela calibração. `NatureSelector(nome, params, memory)`
-    escolhe entre `genetic` (CMA-ES), `pso`, `de`, `lshade`, `lsrtde` e delega `update()`/`portrait()`/`info()`;
+    escolhe entre `genetic` (CMA-ES, que aceita `mean` para a primeira nuvem nascer num ponto conhecido), `pso`, `de`,
+    `lshade`, `lsrtde` e delega `update()`/`portrait()`/`info()`;
     `Problem` traduz `{variável: {'type', 'bounds'}}` em genoma; `Memory` persiste `state.npz`/`best.json`/`history.json`.
 11. **`Marcia/model_N/`** guarda modelos antigos/externos no mesmo formato de `Model/Backup`; os dois notebooks do
     Marlim aceitam `BASE_PATH = '../Marcia'`.
@@ -79,13 +85,16 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
 - **Eixos:** os datasets são gravados em `(x, z, y)` — o `saveTile` transpõe `(0, 2, 1)` na saída do gerador, e
   `Synthetic/utils.formatAxis` faz o mesmo para visualizar. Os tiles reais das regiões são `(inline, z, xline)`.
 - **Nova rede:** arquivo em `Model/Network/types/X.py` e um `if` em `ModelNetwork.get()`; o nome usado ali é o que vai
-  em `Task/info.json`. Hoje: `standard`, `unet3d_v2`, `segresnet`, `resaceunet`, `resaceunet_grva`, `macnn`.
+  em `Task/info.json`. Hoje: `standard`, `unet3d_v2`, `segresnet`, `resaceunet`, `resaceunet_grva`, `macnn`,
+  `fault_seg_net`.
 - **Nova loss:** classe em `Model/Losses/index.py` e entrada em `Losses.options` (`cross_entropy`, `dice_focal`,
-  `focal`, `smooth_dice`). Toda loss força `float32` fora do autocast. No MONAI 1.5.2 o termo focal do `DiceFocalLoss`
+  `focal`, `smooth_dice`, `compound`). Toda loss força `float32` fora do autocast. No MONAI 1.5.2 o termo focal do `DiceFocalLoss`
   é sempre sigmoide, mesmo no caso multiclasse — considere isso antes de comparar campanhas `dice_focal`.
 - **Augmentação:** o notebook de treino usa `Model/Transforms/index.py`; `Model/Augmentor/index.py` é uma cópia antiga
   quase idêntica — mexa no `Transforms/`. Como o `Format` já grava em `[0,1]` e val/teste não passam por transform,
   `Normalize`/`Clip` no treino dessincronizam as distribuições e derrubam o IoU.
+- **Pool por `fork` depois de cv2:** notebook que usa cv2 no processo principal e depois cria pool por `fork` chama
+  `cv2.setNumThreads(1)` na primeira célula — sem isso os filhos travam em futex e o `pool.map` espera para sempre.
 - **Idioma:** identificadores em inglês e `camelCase`; comentários, markdown, títulos de gráfico, commits e relatórios
   em português. O relatório de qualquer trabalho feito aqui é em português.
 - **`CODE_STYLE.md` na raiz é a regra de escrita** (uma linha MAIÚSCULA acima de cada classe, sem docstring, sem type
