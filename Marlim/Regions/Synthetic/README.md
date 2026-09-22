@@ -307,6 +307,27 @@ Verificação no dado gravado (sonda treinada nos 220 tiles, 4 patches):
 A similaridade do dado gravado contra as regiões reais é 77.6 (`faulted`), 61.6 (`calm`) e 61.2 (`dead`) — abaixo dos
 94.4 do dado que a busca por similaridade gerava, que é exatamente o ponto.
 
+### 6.1 O dado novo na rede completa
+
+`Dataset/dataset_regions/Format.ipynb` → `Task/index.py` → `Marlim/1 - Predict.ipynb` → `Marlim/2 - Analysis.ipynb`,
+com a mesma rede, loss e lr do `model_23` e do `model_25` (`unet3d_v2`, `smooth_dice`, lr 1e-4, 100 épocas, 220 tiles,
+8 h 13 min de treino). Média dos quatro patches, contra a anotação do especialista:
+
+| modelo | dado | IoU no sintético | recall | detecção | precisão | F1 |
+|---|---|---|---|---|---|---|
+| **`model_26`** | **`dataset_regions` novo** | 0.704 | **0.520** | **0.515** | 0.236 | 0.318 |
+| `model_23` | `dataset_74` | 0.714 | 0.488 | 0.471 | 0.263 | 0.334 |
+| `model_25` | `dataset_regions` antigo (similaridade) | 0.821 | 0.036 | 0.032 | 0.747 | 0.068 |
+
+Por pixel, a cobertura do traço anotado (predição ≥ 0.5 a até 4 px) vai de **0.073 para 0.584** e o fundo marcado de
+0.008 para 0.173; o trecho coberto mediano vai de 9.5 px para 15.9 px. Contra o `dataset_74`, que era o melhor dado
+conhecido, o novo empata dentro do ruído (recall +0.03, F1 −0.016, com o espalhamento entre redes no mesmo dado em
+0.35–0.41 de F1). O IoU no sintético anda ao contrário do resultado mais uma vez: 0.821 no dado que não transfere,
+0.704 no que transfere.
+
+A sonda acertou a ordem dos patches para este dado: F1 previsto 0.384 (2600) > 0.299 (1200) > 0.246 (1400) > 0.258
+(1300); medido na rede completa 0.415 > 0.344 > 0.273 > 0.239.
+
 ## 7. A similaridade como diagnóstico
 
 A classe `ImageSimilarity` continua no notebook, com a mesma régua de 33 atributos, o mesmo
