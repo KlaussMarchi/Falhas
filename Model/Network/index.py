@@ -7,10 +7,11 @@ from monai.networks.nets import SegResNet
 
 from .types.UNet3D import UNet3D
 from .types.Unet3D_V2 import Unet3D_V2
-from .types.resaceunet import ResACEUnet
-from .types.ResACEUnet_GRVA import ResACEUnet_GRVA
-from .types.MACNN import MACNN
+from .types.ResACEUnet import ResACEUnet
 from .types.FaultSegNet import FaultSegNet
+from .types.NRUNet import NRUNet
+from .types.MACNN  import MACNN
+from .types.FaultEdgeFormer import FaultEdgeFormer
 
 
 class ModelNetwork:
@@ -20,9 +21,9 @@ class ModelNetwork:
         self.network = network
         self.img_size = img_size
         self.classes  = classes
-        self.multiclass = (self.classes > 1)
-        self.channels   = channels
-        self.dropout    = dropout
+        self.multiclass  = (self.classes > 1)
+        self.channels    = channels
+        self.dropout     = dropout
         self.num_filters = num_filters
         self.lr = lr
         
@@ -38,25 +39,36 @@ class ModelNetwork:
     def get(self):
         classes = self.classes
 
+        # UNET PADRÃO TESTADA NO PROJETO DOS DENTISTAS
         if self.network == 'standard':
             return UNet3D(img_channels=self.channels, num_filters=self.num_filters, dropout=self.dropout, classes=classes)
-        
+
+        # UNET 3D MODIFICADA GRVA (LUCAS E CELIA)
         if self.network == 'unet3d_v2':
             return Unet3D_V2(img_channels=self.channels, classes=classes, num_filters=self.num_filters, dropout=self.dropout)
 
+        # TESTADA PARA PROJETOS DE SEGMENTAÇÃO NA AREA METIRCA
         if self.network == 'segresnet':
             return SegResNet(spatial_dims=3, in_channels=self.channels, out_channels=self.classes, init_filters=self.num_filters, dropout_prob=self.dropout)
-        
+
+        # RESACUNET MODIFICADA COM BOTTLENECK E PROFUNDIDADE (ZU ET AL. 2024, ResACEUnet...pdf)
         if self.network == 'resaceunet':
             return ResACEUnet(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
-
-        if self.network == 'resaceunet_grva':
-            return ResACEUnet_GRVA(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
-
+        
+        # MACNN MULTIESCALA COM ATENÇÃO (GAO ET AL. 2022, 3 - Automatic fault detection...pdf)
         if self.network == 'macnn':
             return MACNN(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
 
+        # FAULT-SEG-NET COM FUSÃO MULTIESCALA (LI ET AL. 2023, 1 - Fault-Seg-Net A method for...pdf)
         if self.network == 'fault_seg_net':
             return FaultSegNet(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
+
+        # U-NET RESIDUAL ANINHADA (GAO ET AL. 2022, Fault_Detection_on_..._Nested_Residual_U-Net.pdf)
+        if self.network == 'nru_net':
+            return NRUNet(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
+
+        # TRANSFORMER COM SOBEL TREINÁVEL NAS BORDAS (DI ET AL. 2026, 4 - FaultEdgeFormer_...pdf)
+        if self.network == 'fault_edge_former':
+            return FaultEdgeFormer(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
 
         return None

@@ -115,6 +115,42 @@ class CompoundLoss(nn.Module):
         return self.MU * self.dice(logits, target) + (1.0 - self.MU) * self.focal(logits, target)
 
 
+# PERDA DE TVERSKY DO FAULTEDGEFORMER (DI ET AL., 2026, EQ. 28): L = 1 - TP / (TP + a*FP + b*FN), com a = 0.3 no
+# falso positivo e b = 0.7 no falso negativo. E a que o artigo recomenda (secao 5.3): o mesmo IoU do Dice (0.6948
+# contra 0.6965, e 0.6237 da BCE balanceada) com o recall mais alto dos tres (0.9065). As somas sao globais sobre o
+# lote, como na smooth_dice; o suavizador 1 nao esta no artigo e so evita 0/0 num lote sem falha.
+# MEDIDO AQUI, O RECALL A MAIS NAO CHEGA AO MARLIM: no FaultEdgeFormer, 10 epocas no dataset_74, ela perde da
+# smooth_dice nos dois criterios - val_iou 0.345 contra 0.376 e recall no patch 1200 0.092 contra 0.220. A mascara
+# engorda, e o piso percentual do FaultStickExtractor sobe e apaga o traco
+class TverskyLoss(nn.Module):
+    ALPHA  = 0.3
+    BETA   = 0.7
+    SMOOTH = 1.0
+
+    def __init__(self, multiclass=False):
+        super().__init__()
+        self.multiclass = multiclass
+
+    def forward(self, logits, target):
+        with torch.amp.autocast('cuda', enabled=False):
+            logits = logits.float()
+            target = target.float()
+
+            if self.multiclass:
+                probs  = torch.softmax(logits, dim=1)
+                target = torch.zeros_like(probs).scatter_(1, target.long().view(probs.shape[0], 1, *probs.shape[2:]), 1.0)
+            else:
+                probs = torch.sigmoid(logits)
+
+                if target.shape != probs.shape:
+                    target = target.view_as(probs)
+
+            TP = (probs * target).sum()
+            FP = (probs * (1.0 - target)).sum()
+            FN = ((1.0 - probs) * target).sum()
+            return 1.0 - (TP + self.SMOOTH) / (TP + self.ALPHA * FP + self.BETA * FN + self.SMOOTH)
+
+
 class Losses:
     FOCAL_ALPHA = 0.93
 
@@ -124,6 +160,7 @@ class Losses:
         'focal': FocalLoss,
         'smooth_dice': SmoothDiceLoss,
         'compound': CompoundLoss,
+        'tversky': TverskyLoss,
     }
 
     def __new__(cls, name, multiclass=False):
