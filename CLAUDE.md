@@ -45,9 +45,9 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
    `[0,1]`; no `dataset_regions` os trilhos são o `clip` **declarado** no `synthetic.json` (±2.42 sobre o tile
    z-scorado, o p01/p99 que o `Format` do `dataset_74` mediu), para a escala não depender da amostra.
 3. **`Task/info.json`** é a configuração única da rodada (`network`, `dataset`, `img_size`, `lr`, `loss`, `batch_size`,
-   `scheduler`, `dropout`, `num_filters`, `ema`, `n_trials`, opcionais `epochs`/`augmentations`), lida como `OPTIONS`.
+   `scheduler`, `dropout`, `num_filters`, `ema`, `n_trials`, opcional `epochs`), lida como `OPTIONS`.
 4. **`Model/1 - Model.ipynb`** — o treino. Split fixo (`random_state=42`) com ~4,5% para validação e ~4,5% para teste
-   (220 tiles dão 200/10/10), `CustomDataset` + `Compose` do `Transforms/`, `Trainer` (clip de gradiente,
+   (220 tiles dão 200/10/10), `CustomDataset`, `Trainer` (clip de gradiente,
    `ReduceLROnPlateau`/`CosineAnnealingWarmRestarts`, `ModelEMA` do `Model/EMA/` quando `ema` é true, progresso
    corrente em `Model/progress.json`). Salva `Model/Backup/model_N/` com `info.json`, `model.pth`
    (`{'model', 'optimizer', 'timestamp', 'history'}`), `train.png` e `predictions/`; `N` é o maior `model_N` + 1. O
@@ -89,9 +89,8 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
   `focal`, `smooth_dice`, `compound`, `tversky`). Toda loss força `float32` fora do autocast. No MONAI 1.5.2 o termo
   focal do `DiceFocalLoss` é sempre sigmoide, mesmo no caso multiclasse — considere isso antes de comparar campanhas
   `dice_focal`.
-- **Augmentação:** o treino usa `Model/Transforms/index.py`; `Model/Augmentor/index.py` é uma cópia antiga quase
-  idêntica — mexa no `Transforms/`. Como o `Format` já grava em `[0,1]` e val/teste não passam por transform,
-  `Normalize`/`Clip` no treino dessincronizam as distribuições e derrubam o IoU.
+- **Sem augmentação:** o pipeline treina com os tiles do `Format` como estão; não há `Transforms/` nem chave
+  `augmentations` no `task.json`.
 - **Pool por `fork` depois de cv2:** notebook que usa cv2 no processo principal e depois cria pool por `fork` chama
   `cv2.setNumThreads(1)` na primeira célula — sem isso os filhos travam em futex e o `pool.map` espera para sempre.
 - **Idioma:** identificadores em inglês e `camelCase`; comentários, markdown, títulos de gráfico, commits e relatórios

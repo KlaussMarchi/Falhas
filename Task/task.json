@@ -1,3 +1,106 @@
 [
-   
+    {
+        "network": "standard",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "lr": 0.0001,
+        "loss": "dice_focal",
+        "batch_size": 2,
+        "scheduler": "plateau",
+        "dropout": 0.05,
+        "num_filters": 32,
+        "ema": true,
+        "n_trials": 1
+    },
+    {
+        "network": "unet3d_v2",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "lr": 0.0001,
+        "loss": "dice_focal",
+        "batch_size": 2,
+        "scheduler": "plateau",
+        "dropout": 0.05,
+        "num_filters": 32,
+        "ema": true,
+        "n_trials": 1
+    },
+    {
+        "network": "segresnet",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "lr": 0.0001,
+        "loss": "dice_focal",
+        "batch_size": 2,
+        "scheduler": "plateau",
+        "dropout": 0.05,
+        "num_filters": 32,
+        "ema": true,
+        "n_trials": 1
+    },
+    {
+        "network": "resaceunet",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "lr": 0.0001,
+        "loss": "dice_focal",
+        "batch_size": 2,
+        "scheduler": "plateau",
+        "dropout": 0.05,
+        "num_filters": 32,
+        "ema": true,
+        "n_trials": 1
+    },
+    {
+        "network": "macnn",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "lr": 0.0001,
+        "loss": "dice_focal",
+        "batch_size": 2,
+        "scheduler": "plateau",
+        "dropout": 0.05,
+        "num_filters": 32,
+        "ema": true,
+        "n_trials": 1
+    },
+    {
+        "network": "fault_seg_net",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "lr": 0.0001,
+        "loss": "dice_focal",
+        "batch_size": 2,
+        "scheduler": "plateau",
+        "dropout": 0.05,
+        "num_filters": 32,
+        "ema": true,
+        "n_trials": 1
+    },
+    {
+        "network": "nru_net",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "lr": 0.0001,
+        "loss": "dice_focal",
+        "batch_size": 2,
+        "scheduler": "plateau",
+        "dropout": 0.05,
+        "num_filters": 32,
+        "ema": true,
+        "n_trials": 1
+    },
+    {
+        "network": "fault_edge_former",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "lr": 0.0001,
+        "loss": "dice_focal",
+        "batch_size": 2,
+        "scheduler": "plateau",
+        "dropout": 0.05,
+        "num_filters": 36,
+        "ema": true,
+        "n_trials": 1
+    }
 ]
