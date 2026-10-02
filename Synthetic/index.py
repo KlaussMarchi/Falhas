@@ -1,15 +1,15 @@
 import numpy as np
 import scipy.ndimage as ndimage
 import os, json, copy, shutil
-from concurrent.futures import ProcessPoolExecutor
+import torch
+import torch.nn.functional as F
+from functools import lru_cache
 from tqdm import tqdm
 
 
-# VOLUME SÍSMICO SINTÉTICO COM A MÁSCARA DAS FALHAS, MONTADO NUM CUBO COM MARGEM E CORTADO NO FIM
+# VOLUME SÍSMICO SINTÉTICO COM A MÁSCARA DAS FALHAS, MONTADO NUM CUBO COM MARGEM E CORTADO NO FIM; O CUBO É CALCULADO NA PLACA, EM float64
 class SyntheticGenerator:
-    PAD  = 12       # PREENCHIMENTO QUE O map_coordinates FAZ NO MODO 'nearest'
-    TAIL = 1e-30    # TAP DA WAVELET ABAIXO DESTA FRAÇÃO DO PICO NÃO MUDA A SOMA EM float64
-    NICE = 10       # PRIORIDADE DOS PROCESSOS DO dataset(), PARA A MÁQUINA SEGUIR USÁVEL
+    PAD = 12    # PREENCHIMENTO QUE O map_coordinates FAZ NO MODO 'nearest'
 
     def __init__(self, shape=(128, 128, 128), seed=None):
         self.margin     = 64                  # BORDA QUE ABSORVE DOBRA E REJEITO ANTES DO CORTE
@@ -24,7 +24,6 @@ class SyntheticGenerator:
         self.foldAmplitude = (-35, 5)         # ALTURA DA DOBRA
         self.foldDamping   = 1.35             # QUANTO A DOBRA CRESCE COM A PROFUNDIDADE
         self.foldBaseShift = (-0.75, 4.45)    # DESLOCAMENTO VERTICAL DO BLOCO INTEIRO
-
         self.shearOffset   = (-8.68, 3.3)     # DESLOCAMENTO VERTICAL CONSTANTE
         self.shearGradient = (-0.1, 0.02)     # MERGULHO REGIONAL DAS CAMADAS
 
@@ -50,6 +49,9 @@ class SyntheticGenerator:
         self.gainJitter = 0.0                 # DESVIO DO LOG-GANHO ENTRE TILES DO MESMO LOTE
         self.clip       = None                # SATURAÇÃO SIMÉTRICA DEPOIS DO GANHO
 
+        self.fast   = False                   # True SORTEIA OS CAMPOS DE RUÍDO NA PLACA: MESMA DISTRIBUIÇÃO E MAIS RÁPIDO, MAS A SEMENTE DÁ OUTRO TILE
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
         self.nx    = self.finalShape[0] + 2 * self.margin
         self.ny    = self.finalShape[1] + 2 * self.margin
         self.nz    = self.finalShape[2] + 2 * self.margin
@@ -59,14 +61,55 @@ class SyntheticGenerator:
             np.random.seed(seed)
 
     def get(self):
-        model, mask = self.applyFaulting(self.applyShearing(self.applyFolding(self.genReflectivity())))
-        image       = self.crop(self.applyNoise(self.applyWavelet(model)))
-        image       = (image - np.mean(image)) / (np.std(image) + 1e-8)
-        return image.astype(np.float32), self.crop(mask).astype(np.uint8)
+        model, mask = self.applyFaulting(self.applyShearing(self.applyFolding(self.tensor(self.genReflectivity()))))
+        image = self.crop(self.applyNoise(self.applyWavelet(model)))
+        image = (image - image.mean()) / (image.std(correction=0) + 1e-8)
+        return image.float().cpu().numpy(), self.crop(mask).cpu().numpy()
 
     def set(self, options):
         for key, value in options.items():
             setattr(self, key, value)
+
+    def tensor(self, array):
+        return torch.as_tensor(array, dtype=torch.float64, device=self.device)
+
+    # CADA ETAPA DEVOLVE NO TIPO EM QUE RECEBEU: numpy PARA QUEM CHAMA A ETAPA SOLTA, E NO get() O CUBO FICA NA PLACA DE UMA ETAPA À OUTRA
+    def output(self, volume, source):
+        return volume if torch.is_tensor(source) else volume.cpu().numpy()
+
+    # CAMPO NORMAL PADRÃO: O float64 DO np.random OU, NO MODO fast, UM float32 SORTEADO NA PLACA COM A SEMENTE TIRADA DO np.random
+    def getField(self, shape):
+        if not self.fast:
+            return self.tensor(np.random.normal(0, 1, shape))
+
+        return torch.randn(shape, generator=torch.Generator(self.device).manual_seed(int(np.random.randint(2 ** 31))), device=self.device)
+
+    # A MATRIZ DO gaussian_filter1d DO scipy, COM A BORDA DELE: O FILTRO APLICADO ÀS COLUNAS DA IDENTIDADE
+    @staticmethod
+    @lru_cache(maxsize=32)
+    def getGaussian(sigma, size, dtype, device):
+        return torch.as_tensor(ndimage.gaussian_filter1d(np.eye(size), sigma, axis=0), dtype=dtype, device=device)
+
+    # A MATRIZ DO PRÉ-FILTRO DO SPLINE CÚBICO NO MODO 'nearest'
+    @staticmethod
+    @lru_cache(maxsize=4)
+    def getSpline(size, device):
+        return torch.as_tensor(ndimage.spline_filter1d(np.eye(size), 3, axis=0, mode='nearest'), dtype=torch.float64, device=device)
+
+    # UM FILTRO 1D AO LONGO DE UM EIXO DO VOLUME É O PRODUTO PELA MATRIZ DELE; AS TRÊS FORMAS DEVOLVEM O VOLUME CONTÍGUO
+    def applyOperator(self, volume, operator, axis):
+        if axis == 0:
+            return (operator @ volume.reshape(volume.shape[0], -1)).reshape(-1, *volume.shape[1:])
+
+        return operator @ volume if axis == 1 else volume @ operator.T
+
+    # O gaussian_filter DO scipy: UM OPERADOR POR EIXO, NA ORDEM DOS EIXOS, PULANDO O EIXO DE SIGMA ZERO
+    def gaussian(self, volume, sigma):
+        for axis, value in enumerate(np.broadcast_to(sigma, volume.ndim)):
+            if value > 1e-15:
+                volume = self.applyOperator(volume, self.getGaussian(float(value), volume.shape[axis], volume.dtype, self.device), axis)
+
+        return volume
 
     def genReflectivity(self):
         reflectivity = np.zeros(self.nz, dtype=np.float64)
@@ -79,9 +122,9 @@ class SyntheticGenerator:
         return reflectivity
 
     def applyFolding(self, reflectivity):
-        xx, yy = np.meshgrid(np.arange(self.nx), np.arange(self.ny), indexing='ij')
+        xx, yy = torch.meshgrid(self.tensor(np.arange(self.nx)), self.tensor(np.arange(self.ny)), indexing='ij')
         a0     = np.random.uniform(*self.foldBaseShift)
-        shift  = np.zeros((self.nx, self.ny), dtype=np.float64)
+        shift  = torch.zeros_like(xx)
 
         for _ in range(np.random.randint(*self.foldCount)):
             x0     = np.random.uniform(-self.nx * 0.3, self.nx * 1.3)
@@ -93,41 +136,45 @@ class SyntheticGenerator:
             dx, dy = (xx - x0) * self.foldAspect, yy - y0
             u      = np.cos(theta) * dx + np.sin(theta) * dy
             v      = -np.sin(theta) * dx + np.cos(theta) * dy
-            shift += amp * np.exp(-(u ** 2 / (2 * sigmaX ** 2) + v ** 2 / (2 * sigmaY ** 2)))
+            shift += amp * torch.exp(-(u ** 2 / (2 * sigmaX ** 2) + v ** 2 / (2 * sigmaY ** 2)))
 
-        z       = np.arange(self.nz, dtype=np.float64)
-        zTarget = z[None, None, :] + (a0 + shift[:, :, None] * (self.foldDamping * z / (self.nz - 1))[None, None, :])
-        return ndimage.map_coordinates(reflectivity, [zTarget], order=3, mode='nearest')
+        z       = self.tensor(np.arange(self.nz))
+        zTarget = z + (a0 + shift[:, :, None] * (self.foldDamping * z / (self.nz - 1)))
+        floor   = zTarget.floor()
+        return self.output(self.evaluate(self.getCoefficients(self.tensor(reflectivity)).expand(self.nx, self.ny, -1), floor.long(), zTarget - floor), reflectivity)
 
     def applyShearing(self, reflectivity):
         e0    = np.random.uniform(*self.shearOffset)
         f     = np.random.uniform(*self.shearGradient)
         g     = np.random.uniform(*self.shearGradient)
         shift = e0 + f * np.arange(self.nx, dtype=np.float64)[:, None] + g * np.arange(self.ny, dtype=np.float64)[None, :]
-        return self.interpolate(reflectivity, shift)
+        return self.output(self.interpolate(self.tensor(reflectivity), shift), reflectivity)
 
     # O map_coordinates CÚBICO EM (x, y, z + shift): COM x E y INTEIROS O SPLINE 3D SE REDUZ AO SPLINE 1D EM z
     def interpolate(self, volume, shift):
-        coef    = ndimage.spline_filter1d(np.pad(volume, ((0, 0), (0, 0), (self.PAD, self.PAD)), mode='edge'), 3, axis=2, mode='nearest')
-        floor   = np.floor(shift)
-        t       = shift - floor
-        start   = floor.astype(np.int64)[:, :, None] + np.arange(self.PAD - 1, self.PAD - 1 + volume.shape[2])[None, None, :]
+        floor = np.floor(shift)
+        start = self.tensor(floor).long()[:, :, None] + torch.arange(volume.shape[2], device=self.device)
+        return self.evaluate(self.getCoefficients(volume), start, self.tensor(shift - floor)[:, :, None])
+
+    # COEFICIENTES DO SPLINE CÚBICO EM z, COM O PREENCHIMENTO DE BORDA QUE O map_coordinates FAZ NO MODO 'nearest'
+    def getCoefficients(self, volume):
+        lead   = volume.shape[:-1]
+        padded = torch.cat([volume[..., :1].expand(*lead, self.PAD), volume, volume[..., -1:].expand(*lead, self.PAD)], dim=-1)
+        return padded @ self.getSpline(padded.shape[-1], self.device).T
+
+    # OS 4 TAPS DO SPLINE EM z NA COORDENADA floor + t, COM O ÍNDICE DO ESTÊNCIL PRESO NA BORDA
+    def evaluate(self, coef, floor, t):
         weights = ((1 - t) ** 3 / 6, (3 * t ** 3 - 6 * t ** 2 + 4) / 6, (-3 * t ** 3 + 3 * t ** 2 + 3 * t + 1) / 6, t ** 3 / 6)
-        output  = np.zeros(volume.shape)
-
-        for k, weight in enumerate(weights):
-            output += weight[:, :, None] * np.take_along_axis(coef, np.clip(start + k, 0, coef.shape[2] - 1), axis=2)
-
-        return output
+        return sum(weight * coef.gather(-1, (floor + self.PAD - 1 + k).clamp(0, coef.shape[-1] - 1)) for k, weight in enumerate(weights))
 
     def applyFaulting(self, reflectivity):
-        model = reflectivity
-        masks = np.zeros(self.shape, dtype=np.uint8)
+        model = self.tensor(reflectivity)
+        masks = torch.zeros(self.shape, dtype=torch.uint8, device=self.device)
 
         for _ in range(np.random.randint(*self.faultCount)):
             model, masks = self.applyFault(model, masks)
 
-        return model, masks
+        return self.output(model, reflectivity), self.output(masks, reflectivity)
 
     def applyFault(self, model, masks):
         p0        = np.random.uniform(0.15, 0.85, 3) * np.array(self.shape)
@@ -138,28 +185,22 @@ class SyntheticGenerator:
         strike    = np.array([1.0, 0.0, 0.0]) if np.linalg.norm(strike) < 1e-6 else strike / np.linalg.norm(strike)
         dip       = np.cross(normal, strike)
         dip      /= np.linalg.norm(dip)
+        grid      = [self.tensor(np.arange(size)).reshape(shape) for size, shape in zip(self.shape, ((-1, 1, 1), (1, -1, 1), (1, 1, -1)))]
 
-        dx = (np.arange(self.nx) - p0[0])[:, None, None]
-        dy = (np.arange(self.ny) - p0[1])[None, :, None]
-        dz = (np.arange(self.nz) - p0[2])[None, None, :]
+        normal, strike, dip = normal.tolist(), strike.tolist(), dip.tolist()
+        dx, dy, dz          = [points - origin for points, origin in zip(grid, p0)]
 
-        distDip    = dip[0] * dx + dip[1] * dy + dip[2] * dz
-        distPlane  = normal[0] * dx + normal[1] * dy + normal[2] * dz
-        bend       = self.getBend(distDip)
-        noise      = ndimage.gaussian_filter(np.random.normal(0, 1, self.shape), sigma=self.faultRoughSigma)
-        noise     *= self.faultRoughness
-        distPlane += noise
-        distPlane -= bend
-        throw      = self.getThrow(strike[0] * dx + strike[1] * dy + strike[2] * dz, distDip, np.random.uniform(*self.faultThrow))
+        distDip   = dip[0] * dx + dip[1] * dy + dip[2] * dz
+        distPlane = normal[0] * dx + normal[1] * dy + normal[2] * dz
+        bend      = self.getBend(distDip)
+        distPlane = distPlane + self.gaussian(self.getField(self.shape), self.faultRoughSigma).double() * self.faultRoughness - bend
+        throw     = self.getThrow(strike[0] * dx + strike[1] * dy + strike[2] * dz, distDip, np.random.uniform(*self.faultThrow))
 
         hanging = distPlane > 0
-        moved   = throw[hanging]
-        coords  = np.array([(points + moved * step).astype(np.float32) for points, step in zip(np.nonzero(hanging), dip)])
-        model   = self.moveHangingWall(model, hanging, coords, order=1, mode='nearest')
-        masks   = self.moveHangingWall(masks, hanging, coords, order=0, mode='constant', cval=0) if masks.any() else masks
-
-        masks[(np.abs(distPlane) <= self.faultZoneWidth) & (np.abs(throw) > self.faultThreshold)] = 1
-        return model, masks
+        coords  = [(points + throw * step).float() for points, step in zip(grid, dip)]
+        model   = torch.where(hanging, self.resample(model, coords), model)
+        masks   = torch.where(hanging, self.pick(masks, coords), masks) if masks.any() else masks
+        return model, masks | ((distPlane.abs() <= self.faultZoneWidth) & (throw.abs() > self.faultThreshold))
 
     # FALHA LÍSTRICA: O PLANO SE DESLOCA COM O QUADRADO DA DISTÂNCIA AO LONGO DO MERGULHO
     def getBend(self, distDip):
@@ -172,43 +213,33 @@ class SyntheticGenerator:
     # REJEITO DE UMA FALHA: GAUSSIANO EM TORNO DO CENTRO OU RAMPA AO LONGO DO MERGULHO, METADE DAS VEZES CADA
     def getThrow(self, distStrike, distDip, maxDisp):
         if np.random.random() < 0.5:
-            throw  = distStrike ** 2
-            throw += distDip ** 2
-            throw /= -(2.0 * np.random.uniform(*self.faultDecaySigma) ** 2)
-            np.exp(throw, out=throw)
-            throw *= maxDisp
-            return throw
+            return torch.exp((distStrike ** 2 + distDip ** 2) / -(2.0 * np.random.uniform(*self.faultDecaySigma) ** 2)) * maxDisp
 
-        throw  = distDip / np.sqrt(self.nx ** 2 + self.ny ** 2 + self.nz ** 2)
-        throw *= np.random.choice([-1, 1])
-        throw += 0.5
-        np.clip(throw, 0, 1, out=throw)
-        throw *= maxDisp
-        return throw
+        return (distDip / np.sqrt(self.nx ** 2 + self.ny ** 2 + self.nz ** 2) * np.random.choice([-1, 1]) + 0.5).clamp(0, 1) * maxDisp
 
-    # SÓ O BLOCO ALTO É REAMOSTRADO: NO BAIXO A COORDENADA É INTEIRA E O map_coordinates DEVOLVERIA O PRÓPRIO VOXEL
-    def moveHangingWall(self, volume, hanging, coords, **options):
-        moved          = volume.copy()
-        moved[hanging] = ndimage.map_coordinates(volume, coords, **options)
-        return moved
+    # O map_coordinates DE ORDEM 1 NO MODO 'nearest': TRILINEAR NA COORDENADA float32, PRESA NA BORDA
+    def resample(self, volume, coords):
+        grid = torch.stack([2 * coord.double() / (size - 1) - 1 for coord, size in zip(coords[::-1], volume.shape[::-1])], dim=-1)
+        return F.grid_sample(volume[None, None], grid[None], mode='bilinear', padding_mode='border', align_corners=True)[0, 0]
 
-    # O convolve1d DO RICKER SEM AS CAUDAS ABAIXO DE TAIL, NA MESMA ORIGEM: A SOMA NÃO MUDA E O KERNEL ENCURTA ATÉ 4X
+    # O map_coordinates DE ORDEM 0 NO MODO 'constant': O VOXEL MAIS PRÓXIMO, E ZERO PARA A COORDENADA FORA DO VOLUME
+    def pick(self, masks, coords):
+        index  = [(coord.double() + 0.5).floor().long().clamp(0, size - 1) for coord, size in zip(coords, masks.shape)]
+        inside = [(coord >= 0) & (coord <= size - 1) for coord, size in zip(coords, masks.shape)]
+        return masks[index[0], index[1], index[2]] * (inside[0] & inside[1] & inside[2])
+
+    # O convolve1d DO RICKER EM z COMO MATRIZ: O FILTRO DO scipy APLICADO ÀS LINHAS DA IDENTIDADE
     def applyWavelet(self, model):
         f       = np.random.uniform(*self.waveletFreq)
         t       = np.arange(-self.waveletDuration, self.waveletDuration, self.waveletDt)
         wavelet = (1 - 2 * (np.pi * f * t) ** 2) * np.exp(-((np.pi * f * t) ** 2))
-        keep    = np.flatnonzero(np.abs(wavelet) > self.TAIL * np.abs(wavelet).max())
-        size    = len(wavelet)
-        start   = size - 1 - keep[-1]
-        kernel  = wavelet[::-1][start:size - keep[0]]
-        return ndimage.correlate1d(model, kernel, axis=2, origin=size // 2 - (1 - size % 2) - start - len(kernel) // 2)
+        return self.output(self.tensor(model) @ self.tensor(ndimage.convolve1d(np.eye(self.nz), wavelet, axis=1)), model)
 
     def applyNoise(self, image):
-        scale  = np.random.uniform(*self.noiseLevel) * np.std(image)
-        noise  = ndimage.gaussian_filter(np.random.normal(0.0, 1.0, image.shape), sigma=self.noiseSigma)
-        noise *= scale / (np.std(noise) + 1e-8)
-        image += noise
-        return ndimage.gaussian_filter(image, sigma=(0.5, 0.5, 0))
+        volume = self.tensor(image)
+        scale  = np.random.uniform(*self.noiseLevel) * volume.std(correction=0)
+        noise  = self.gaussian(self.getField(volume.shape), self.noiseSigma).double()
+        return self.output(self.gaussian(volume + noise * (scale / (noise.std(correction=0) + 1e-8)), (0.5, 0.5, 0)), image)
 
     def crop(self, volume):
         return volume[self.margin:self.nx - self.margin, self.margin:self.ny - self.margin, self.margin:self.nz - self.margin]
@@ -232,7 +263,7 @@ class SyntheticGenerator:
         return (image if self.clip is None else np.clip(image, -self.clip, self.clip)).astype(np.float32)
 
     # options = {'directory', 'regions': {nome: {'n_images', 'output', 'params'}}, 'seed'}; SEM seed A BASE É SORTEADA
-    def dataset(self, options, n_jobs=None):
+    def dataset(self, options):
         unknown = set(options) - {'directory', 'regions', 'seed'}
 
         if unknown:
@@ -254,21 +285,20 @@ class SyntheticGenerator:
         seed   = options['seed'] if 'seed' in options else np.random.randint(0, 1000000)
         offset = 0
 
-        with ProcessPoolExecutor(max_workers=n_jobs or max(1, os.cpu_count() // 2), initializer=os.nice, initargs=(self.NICE,)) as executor:
-            for name, cfg in regions.items():
-                n         = cfg.get('n_images', 200)
-                generator = copy.deepcopy(self)
-                generator.set(cfg.get('params', {}))
-                images    = os.path.join(folders[name], 'images')
-                masks     = os.path.join(folders[name], 'masks')
+        for name, cfg in regions.items():
+            n         = cfg.get('n_images', 200)
+            generator = copy.deepcopy(self)
+            generator.set(cfg.get('params', {}))
+            images    = os.path.join(folders[name], 'images')
+            masks     = os.path.join(folders[name], 'masks')
 
-                shutil.rmtree(folders[name], ignore_errors=True)
-                os.makedirs(images)
-                os.makedirs(masks)
+            shutil.rmtree(folders[name], ignore_errors=True)
+            os.makedirs(images)
+            os.makedirs(masks)
 
-                tasks = [(offset + i, seed + offset + i, jitter, images, masks) for i, jitter in enumerate(generator.getJitter(n, seed + offset))]
-                list(tqdm(executor.map(generator.saveTile, tasks), total=n, desc=name))
-                offset += n
+            tasks = [(offset + i, seed + offset + i, jitter, images, masks) for i, jitter in enumerate(generator.getJitter(n, seed + offset))]
+            list(tqdm(map(generator.saveTile, tasks), total=n, desc=name))
+            offset += n
 
     # UM TILE DO dataset(): SEMENTE PRÓPRIA, GANHO DA REGIÃO E EIXOS (x, z, y) DOS DATASETS DO PROJETO
     def saveTile(self, task):

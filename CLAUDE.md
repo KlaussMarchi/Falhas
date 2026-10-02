@@ -51,7 +51,8 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
    `ReduceLROnPlateau`/`CosineAnnealingWarmRestarts`, `ModelEMA` do `Model/EMA/` quando `ema` é true, progresso
    corrente em `Model/progress.json`). Salva `Model/Backup/model_N/` com `info.json`, `model.pth`
    (`{'model', 'optimizer', 'timestamp', 'history'}`), `train.png` e `predictions/`; `N` é o maior `model_N` + 1. O
-   `img_size` salvo vem do `shape` do `DataBase.csv`, não do `Task/info.json`.
+   `img_size` salvo vem do `shape` do `DataBase.csv`, não do `Task/info.json`. O `test_size`/`val_size` do split também vão
+   para o `info.json`: o `3 - Predict` lê de lá e não tem valor próprio.
 5. **`Model/2 - Compare.ipynb`** junta todo `Backup/*/info.json` numa tabela e compara variações (média±std entre
    trials); **`Model/3 - Predict.ipynb`** reavalia um modelo salvo no dataset dele.
 6. **`Marlim/1 - Predict.ipynb`** — bloco real. Lê `Dataset/marlim/patch_<id>/*.dat` (float32 cru, shape no
