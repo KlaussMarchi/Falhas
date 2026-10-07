@@ -48,6 +48,20 @@ class DiceFocalLoss(MonaiLoss):
             alpha=alpha,
         )
 
+# BCE + DICE DA RESACEUNET (ZU ET AL. 2024, EQ. 5; dice_ce DE loss/losses.py EM github.com/39c5bb-miku/ResACEUnet): o
+# DiceCELoss do MONAI com sigmoide, que no canal unico usa a BCE e soma os dois termos 1:1. A eq. 7 eleva p ao quadrado
+# no denominador do Dice e o codigo dos autores nao (squared_pred falso): fica o codigo, que foi o que gerou os numeros
+class DiceCELoss(MonaiLoss):
+    def __init__(self, multiclass=False):
+        super().__init__(multiclass)
+
+        self._loss = losses.DiceCELoss(
+            to_onehot_y=multiclass,
+            softmax=multiclass,
+            sigmoid=not multiclass,
+            include_background=True,
+        )
+
 class CrossEntropyLoss(nn.Module):
     def __init__(self, multiclass=False, weight=None):
         super().__init__()
@@ -157,6 +171,7 @@ class Losses:
     options = {
         'cross_entropy': CrossEntropyLoss,
         'dice_focal': DiceFocalLoss,
+        'dice_ce': DiceCELoss,
         'focal': FocalLoss,
         'smooth_dice': SmoothDiceLoss,
         'compound': CompoundLoss,

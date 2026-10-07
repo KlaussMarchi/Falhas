@@ -1,4 +1,5 @@
 import papermill as pm
+import pandas as pd
 from pathlib import Path
 import os, json
 
@@ -34,12 +35,14 @@ for i, task in enumerate(tasks):
     database = f"../Dataset/{dataset}/DataBase.csv"
     print(dataset)
 
-    if os.path.exists(database) and info.get('img_size') is None:
+    # O Format SÓ É PULADO QUANDO O DataBase.csv JÁ ESTÁ NA NORMALIZAÇÃO QUE A RODADA PEDE (SEM A COLUNA, É O MIN-MAX)
+    formatted = os.path.exists(database) and pd.read_csv(database, nrows=1).get('normalize', pd.Series([True])).iloc[0] == info.get('normalize', True)
+    n_trials  = int(info.get('n_trials') or 1)
+
+    if formatted and info.get('img_size') is None:
         print(f'Format pulado: {database} ja existe')
     else:
         execute(f"../Dataset/{dataset}/Format.ipynb")
-
-    n_trials = int(info.get('n_trials') or 1)
     
     for trial in range(n_trials):
         print(f'\nTrial {trial+1}/{n_trials}')

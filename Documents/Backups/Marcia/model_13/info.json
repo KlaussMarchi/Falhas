@@ -9,19 +9,17 @@
         "test_iou": 0.7278509736061096
     },
     "processing": {
-        "network": "resaceunet",
+        "network": "resaceunet_grva",
         "dataset": "dataset_74",
-        "img_size": [
-            128,
-            128,
-            128
-        ],
+        "img_size": null,
         "lr": 0.001,
         "loss": "dice_focal",
         "batch_size": 2,
         "scheduler": "plateau",
         "dropout": 0.1,
-        "num_filters": 32,
+        "num_filters": 32
+    },
+    "division": {
         "val_size": 0.047619047619047616,
         "test_size": 0.045454545454545456,
         "n_images": {
@@ -32,7 +30,7 @@
         }
     },
     "model": {
-        "network": "resaceunet",
+        "network": "resaceunet_grva",
         "img_size": [
             128,
             128,

@@ -16,14 +16,15 @@ conda activate torch-gpu           # ou: conda run -n torch-gpu python ...
 
 - **Campanha de treinos (o caminho normal):** edite `Task/task.json` (lista de rodadas, cada uma no formato de
   `Task/info.json`) e rode `cd Task && python index.py`. Para cada rodada ele grava `Task/info.json`, executa
-  `Dataset/<dataset>/Format.ipynb` (pulado quando o `DataBase.csv` já existe e `img_size` é `null`) e depois
+  `Dataset/<dataset>/Format.ipynb` (pulado quando o `DataBase.csv` já existe, `img_size` é `null` e a coluna
+  `normalize` dele bate com a da rodada) e depois
   `Model/1 - Model.ipynb` uma vez por trial (`n_trials`; o trial vai no `info.json` e a semente é `42 + trial`), via
   papermill, com a saída em `Task/logs/<nome>_out.ipynb`. O kernel é `python3`, que resolve para o do `torch-gpu`.
 - **Um notebook só:** abra no Jupyter/VS Code com o kernel `torch-gpu`, ou
   `papermill <nb> /tmp/out.ipynb -k python3 --cwd <pasta do nb>` — todo caminho dentro de um notebook é relativo à
   **pasta dele**, então o `cwd` errado quebra tudo.
-- GPU: o treino roda com AMP desligado (`use_amp = False`), `epochs` do `info.json` (padrão 100) e early stopping sobre
-  `val_iou` com paciência 15. Uma rodada custa horas; nunca re-execute um treino para "verificar" sem pedir.
+- GPU: o treino roda com AMP só quando o `info.json` tem `"amp": true` (padrão desligado), `epochs` do `info.json` (padrão 100) e early stopping sobre
+  `val_iou` com `patience` do `info.json` (padrão 15). Uma rodada custa horas; nunca re-execute um treino para "verificar" sem pedir.
 - `.gitignore` exclui `*.npy`, `*.pth`, `*.dat`, imagens e `*.zip`: datasets, pesos e figuras são locais. Um clone
   limpo precisa regerar os dados pelo `Synthetic/Generate.ipynb` + `Format.ipynb`.
 
@@ -41,23 +42,34 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
    real, que alimenta `Dataset/marlim_opt`.
 2. **`Dataset/<nome>/Format.ipynb`.** Lê `original/*/images|masks`, normaliza para `[0,1]` e grava `images/`, `masks/` e
    o `DataBase.csv` (`id`, estatísticas, `shape`, `img_path`/`mask_path` absolutos). Também reescreve
-   `Task/info.json` com o nome do dataset. A normalização é `clip(p01, p99)` do conjunto inteiro reescalado para
-   `[0,1]`; no `dataset_regions` os trilhos são o `clip` **declarado** no `synthetic.json` (±2.42 sobre o tile
-   z-scorado, o p01/p99 que o `Format` do `dataset_74` mediu), para a escala não depender da amostra.
+   `Task/info.json` com o nome do dataset. A normalização é **min-max de cada volume** para `[0,1]`, sem percentil nem
+   corte (decisão de 06/10/2026, em todos os `Format`); com `"normalize": false` no `info.json` é a padronização de cada
+   volume (média 0, desvio 1, o passo do artigo da ResACEUnet). A escolha fica na coluna `normalize` do `DataBase.csv`
+   (sem ela, é o min-max), e o `1 - Model`, o `Model_CV` e o `3 - Predict` param com erro se ela não bater com a rodada. O Marlim continua no p01/p99 do próprio bloco; medido: a
+   `dbrnet` treinada com percentil perde só 0,005 de IoU no dado com min-max. O `dataset_zu` é o `200-20.zip` que os
+   autores da ResACEUnet publicaram (Zenodo 20339874): o próprio FaultSeg3D do `dataset_wu`, bit a bit e só renumerado
+   (o `Compare.ipynb` da pasta prova; mapa no `README.md`).
 3. **`Task/info.json`** é a configuração única da rodada (`network`, `dataset`, `img_size`, `lr`, `loss`, `batch_size`,
-   `scheduler`, `dropout`, `num_filters`, `ema`, `n_trials`, opcional `epochs`), lida como `OPTIONS`.
+   `scheduler`, `dropout`, `num_filters`, `ema`, `n_trials`, opcionais `epochs`, `patience`, `amp`, `normalize` e
+   `augmentations`), lida como `OPTIONS`.
 4. **`Model/1 - Model.ipynb`** — o treino. Split fixo (`random_state=42`) com ~4,5% para validação e ~4,5% para teste
    (220 tiles dão 200/10/10), `CustomDataset`, `Trainer` (clip de gradiente,
-   `ReduceLROnPlateau`/`CosineAnnealingWarmRestarts`, `ModelEMA` do `Model/EMA/` quando `ema` é true, progresso
+   `plateau` = `ReduceLROnPlateau` por época, `cosine` = aquecimento 1e-6 → `lr` em 10 épocas e cosseno até 1e-7 a cada
+   batch (a agenda da ResACEUnet), `ModelEMA` do `Model/EMA/` quando `ema` é true, progresso
    corrente em `Model/progress.json`). Salva `Model/Backup/model_N/` com `info.json`, `model.pth`
-   (`{'model', 'optimizer', 'timestamp', 'history'}`), `train.png` e `predictions/`; `N` é o maior `model_N` + 1. O
-   `img_size` salvo vem do `shape` do `DataBase.csv`, não do `Task/info.json`. O `test_size`/`val_size` do split também vão
-   para o `info.json`: o `3 - Predict` lê de lá e não tem valor próprio.
+   (`{'model', 'optimizer', 'timestamp', 'history'}`), `train.png` e `predictions/`; `N` é o maior `model_N` + 1. No
+   `info.json` salvo, `processing` é o `Task/info.json` exatamente como veio (copiar e colar reproduz a rodada),
+   `division` guarda o split (`val_size`, `test_size`, `n_images`, e `k_fold` no CV) e `model` os argumentos da rede: o
+   `model.img_size` vem do `shape` do `DataBase.csv` ou, com `crop` no `augmentations`, da janela do recorte. O
+   `3 - Predict` lê o split do `division` e não tem valor próprio.
 5. **`Model/2 - Compare.ipynb`** junta todo `Backup/*/info.json` numa tabela e compara variações (média±std entre
-   trials); **`Model/3 - Predict.ipynb`** reavalia um modelo salvo no dataset dele.
+   trials); **`Model/3 - Predict.ipynb`** reavalia um modelo salvo no dataset dele e, se ele treinou em recorte, mede
+   também pelo protocolo da Tabela 2 da ResACEUnet (recortes 96³ metade em falha, média por recorte; no código deles
+   precisão e recall estão trocados).
 6. **`Marlim/1 - Predict.ipynb`** — bloco real. Lê `Dataset/marlim/patch_<id>/*.dat` (float32 cru, shape no
    `patch_metadata.json`), roda `SlidingWindow` **na janela em que a rede foi treinada** (peso de Hanning na emenda,
-   `OVERLAP` configurável) e grava as máscaras em `Model/Backup/model_N/marlim/patch_<id>/masks` + `predict.json`.
+   `OVERLAP` configurável) e grava as máscaras em `Model/Backup/model_N/marlim/patch_<id>/masks` + `predict.json`;
+   pula modelo treinado com `normalize` false, porque o Marlim está em `[0,1]`.
 7. **`Marlim/2 - Analysis.ipynb`** — remonta o volume predito, extrai sticks (`FaultStickExtractor`) e compara com a
    interpretação do especialista (`FaultComparer`, contra `Marlim/files/patches/<id>/<id>_interpretado.png`, inline
    anotada em `Marlim/files/cache`); sai figura em `Marlim/files/comparisons/` e o CSV `sticks_report_<base>.csv`.
@@ -84,14 +96,20 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
 - **Eixos:** os datasets são gravados em `(x, z, y)` — o `saveTile` transpõe `(0, 2, 1)` na saída do gerador, e
   `Synthetic/utils.formatAxis` faz o mesmo para visualizar. Os tiles reais das regiões são `(inline, z, xline)`.
 - **Nova rede:** arquivo em `Model/Network/types/X.py`, import e um `if` em `ModelNetwork.get()` com uma linha
-  MAIÚSCULA citando a origem; o nome usado ali é o que vai em `Task/info.json`. Hoje: `standard`, `unet3d_v2`,
-  `segresnet`, `resaceunet`, `macnn`, `fault_seg_net`, `nru_net`, `fault_edge_former`.
+  MAIÚSCULA citando a origem; o nome usado ali é o que vai em `Task/info.json`. Hoje: `unet_3d`, `dbrnet`,
+  `segresnet`, `resaceunet_grva`, `resaceunet_wu` (a `ResACEUNet2` atual do repositório dos autores),
+  `resaceunet_zu` (a do artigo, 3 estágios, do primeiro commit), `macnn`, `fault_seg_net`, `nru_net`, `fault_edge_former`.
 - **Nova loss:** classe em `Model/Losses/index.py` e entrada em `Losses.options` (`cross_entropy`, `dice_focal`,
-  `focal`, `smooth_dice`, `compound`, `tversky`). Toda loss força `float32` fora do autocast. No MONAI 1.5.2 o termo
+  `dice_ce`, `focal`, `smooth_dice`, `compound`, `tversky`). Toda loss força `float32` fora do autocast. No MONAI 1.5.2 o termo
   focal do `DiceFocalLoss` é sempre sigmoide, mesmo no caso multiclasse — considere isso antes de comparar campanhas
   `dice_focal`.
-- **Sem augmentação:** o pipeline treina com os tiles do `Format` como estão; não há `Transforms/` nem chave
-  `augmentations` no `task.json`.
+- **Aumentação:** só pelo `augmentations` do `info.json` (`null`/ausente = tiles do `Format` como estão, bit a bit igual
+  ao pipeline sem ela). `Model/Transforms/index.py` reproduz o `build_data.py` da ResACEUnet (gamma, rot90, flip,
+  rotação, suavização, ruído, recorte falha/fundo) mais o `zoom` isotrópico (fator ≥ 1, para cobrir o período de 17–25 px
+  das falhas do Marlim), sorteado no `DataLoader` com semente `(42 + trial, época, índice)`,
+  na ordem do JSON e só no treino; `n_aug` (padrão 1, como nos autores) é quantas variações de cada tile entram por
+  época. Os eixos do config são os nossos `(x, z, y)`: giros e flips em `[0, 2]`. Com `crop`, a
+  rede é montada na janela e o `Trainer`/`3 - Predict` predizem o tile inteiro por `Transforms.infer` (janela deslizante).
 - **Pool por `fork` depois de cv2:** notebook que usa cv2 no processo principal e depois cria pool por `fork` chama
   `cv2.setNumThreads(1)` na primeira célula — sem isso os filhos travam em futex e o `pool.map` espera para sempre.
 - **Idioma:** identificadores em inglês e `camelCase`; comentários, markdown, títulos de gráfico, commits e relatórios
