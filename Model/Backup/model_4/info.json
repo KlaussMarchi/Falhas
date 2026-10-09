@@ -14,7 +14,7 @@
         "network": "resaceunet_zu",
         "dataset": "dataset_zu",
         "img_size": null,
-        "normalize": false,
+        "scaling": "standardize",
         "lr": 0.001,
         "loss": "dice_ce",
         "batch_size": 8,

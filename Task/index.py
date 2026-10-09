@@ -1,7 +1,9 @@
 import papermill as pm
-import pandas as pd
 from pathlib import Path
-import os, json
+import os, json, sys
+
+sys.path.append('..')
+from Dataset.index import Normalization
 
  
 def execute(path):
@@ -35,8 +37,8 @@ for i, task in enumerate(tasks):
     database = f"../Dataset/{dataset}/DataBase.csv"
     print(dataset)
 
-    # O Format SÓ É PULADO QUANDO O DataBase.csv JÁ ESTÁ NA NORMALIZAÇÃO QUE A RODADA PEDE (SEM A COLUNA, É O MIN-MAX)
-    formatted = os.path.exists(database) and pd.read_csv(database, nrows=1).get('normalize', pd.Series([True])).iloc[0] == info.get('normalize', True)
+    # O Format SÓ É PULADO QUANDO O DataBase.csv JÁ ESTÁ NO ESCALONAMENTO QUE A RODADA PEDE (SEM A COLUNA, É O MIN-MAX)
+    formatted = os.path.exists(database) and Normalization.read(database) == info.get('scaling', Normalization.DEFAULT)
     n_trials  = int(info.get('n_trials') or 1)
 
     if formatted and info.get('img_size') is None:

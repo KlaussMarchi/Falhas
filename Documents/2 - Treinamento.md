@@ -36,8 +36,9 @@
 
 - **Tarefa:** segmentação binária voxel a voxel. Cada voxel do volume é *falha* (1) ou *fundo* (0).
 - **Entrada:** $X \in \mathbb{R}^{B\times 1\times D\times H\times W}$, com $(D, H, W) = (x, z, y)$ = (inline, tempo,
-  crossline). Um canal (a amplitude sísmica), normalizado por volume para $[0,1]$ (min-max) ou para média 0 e desvio 1
-  (`normalize = false`). Tamanho típico: $B = 2$ volumes de $128^3$, ou $B = 8$ recortes de $96^3$.
+  crossline). Um canal (a amplitude sísmica), escalonado pelo `scaling` da rodada: min-max por volume para $[0,1]$
+  (`'normalize'`, o padrão), p01/p99 do conjunto para $[0,1]$ (`'percentile'`) ou média 0 e desvio 1 por volume
+  (`'standardize'`). Tamanho típico: $B = 2$ volumes de $128^3$, ou $B = 8$ recortes de $96^3$.
 - **Rótulo:** $Y \in \{0,1\}^{B\times 1\times D\times H\times W}$. A classe *falha* é rara: **~7% dos voxels** nos
   datasets do projeto, distribuídos em lâminas finas (~2 voxels de espessura na direção normal ao plano, contínuas em z).
 - **Modelo:** uma rede convolucional (ou híbrida com atenção) $f_\theta$ que devolve um mapa de **logits** do mesmo

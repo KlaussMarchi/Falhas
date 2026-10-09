@@ -17,6 +17,7 @@
             128,
             128
         ],
+        "scaling": "percentile",
         "lr": 0.001,
         "loss": "dice_focal",
         "batch_size": 2,

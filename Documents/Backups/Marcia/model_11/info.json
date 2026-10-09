@@ -13,6 +13,7 @@
         "network": "resaceunet_grva",
         "dataset": "dataset_74_mar",
         "img_size": null,
+        "scaling": "percentile",
         "lr": 0.001,
         "loss": "dice_focal",
         "batch_size": 2,

@@ -17,7 +17,7 @@ conda activate torch-gpu           # ou: conda run -n torch-gpu python ...
 - **Campanha de treinos (o caminho normal):** edite `Task/task.json` (lista de rodadas, cada uma no formato de
   `Task/info.json`) e rode `cd Task && python index.py`. Para cada rodada ele grava `Task/info.json`, executa
   `Dataset/<dataset>/Format.ipynb` (pulado quando o `DataBase.csv` já existe, `img_size` é `null` e a coluna
-  `normalize` dele bate com a da rodada) e depois
+  `scaling` dele bate com a da rodada) e depois
   `Model/1 - Model.ipynb` uma vez por trial (`n_trials`; o trial vai no `info.json` e a semente é `42 + trial`), via
   papermill, com a saída em `Task/logs/<nome>_out.ipynb`. O kernel é `python3`, que resolve para o do `torch-gpu`.
 - **Um notebook só:** abra no Jupyter/VS Code com o kernel `torch-gpu`, ou
@@ -40,17 +40,23 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
    `gain`/`gainJitter`/`clip` ajustam contraste por região depois do z-score. O `Synthetic/Generate.ipynb` monta um
    dataset novo; `Marlim/files/Generator.ipynb` tem um gerador próprio (`MarlimSyntheticGenerator`), copiado do bloco
    real, que alimenta `Dataset/marlim_opt`.
-2. **`Dataset/<nome>/Format.ipynb`.** Lê `original/*/images|masks`, normaliza para `[0,1]` e grava `images/`, `masks/` e
-   o `DataBase.csv` (`id`, estatísticas, `shape`, `img_path`/`mask_path` absolutos). Também reescreve
-   `Task/info.json` com o nome do dataset. A normalização é **min-max de cada volume** para `[0,1]`, sem percentil nem
-   corte (decisão de 06/10/2026, em todos os `Format`); com `"normalize": false` no `info.json` é a padronização de cada
-   volume (média 0, desvio 1, o passo do artigo da ResACEUnet). A escolha fica na coluna `normalize` do `DataBase.csv`
-   (sem ela, é o min-max), e o `1 - Model`, o `Model_CV` e o `3 - Predict` param com erro se ela não bater com a rodada. O Marlim continua no p01/p99 do próprio bloco; medido: a
-   `dbrnet` treinada com percentil perde só 0,005 de IoU no dado com min-max. O `dataset_zu` é o `200-20.zip` que os
+2. **`Dataset/<nome>/Format.ipynb`.** Lê `original/*/images|masks`, escalona e grava `images/`, `masks/` e
+   o `DataBase.csv` (`id`, estatísticas, `shape`, `img_path`/`mask_path` absolutos, `scaling`). Também reescreve
+   `Task/info.json` com o nome do dataset. O que se repete entre os `Format` mora no `Dataset/index.py`: `getFiles`,
+   `setFolder`, `showTile`, `TilesBuilder` e a `Normalization`, escolhida pelo `scaling` do `info.json`:
+   `'normalize'` (o padrão sem a chave: **min-max de cada volume** para `[0,1]`, decisão de 06/10/2026), `'percentile'`
+   (corte no p01/p99 do conjunto inteiro, reescalado para `[0,1]`), `'standardize'` (média 0 e desvio 1 por volume, o
+   passo do artigo da ResACEUnet) ou `null` (volume cru). A escolha fica na coluna `scaling` do `DataBase.csv`
+   (`Normalization.read`: sem ela é o min-max, célula vazia é `null`), e o `1 - Model`, o `Model_CV` e o `3 - Predict`
+   param com erro se ela não bater com a rodada. O `marlim_opt` é `'percentile'`: o min-max por volume desfaria o ganho
+   global do gerador. O `dataset_74_wu` não tem `images/` próprios: junta os do `dataset_74` e do `dataset_wu` e roda,
+   por papermill, o `Format` da fonte que não estiver no `scaling` da rodada (no percentil, cada fonte com o seu). Os
+   modelos salvos antes de 06/10/2026 têm `scaling: "percentile"`. O Marlim continua no p01/p99 do próprio bloco;
+   medido: a `dbrnet` treinada com percentil perde só 0,005 de IoU no dado com min-max. O `dataset_zu` é o `200-20.zip` que os
    autores da ResACEUnet publicaram (Zenodo 20339874): o próprio FaultSeg3D do `dataset_wu`, bit a bit e só renumerado
    (o `Compare.ipynb` da pasta prova; mapa no `README.md`).
 3. **`Task/info.json`** é a configuração única da rodada (`network`, `dataset`, `img_size`, `lr`, `loss`, `batch_size`,
-   `scheduler`, `dropout`, `num_filters`, `ema`, `n_trials`, opcionais `epochs`, `patience`, `amp`, `normalize` e
+   `scheduler`, `dropout`, `num_filters`, `ema`, `n_trials`, opcionais `epochs`, `patience`, `amp`, `scaling` e
    `augmentations`), lida como `OPTIONS`.
 4. **`Model/1 - Model.ipynb`** — o treino. Split fixo (`random_state=42`) com ~4,5% para validação e ~4,5% para teste
    (220 tiles dão 200/10/10), `CustomDataset`, `Trainer` (clip de gradiente,
@@ -66,10 +72,10 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
    trials); **`Model/3 - Predict.ipynb`** reavalia um modelo salvo no dataset dele e, se ele treinou em recorte, mede
    também pelo protocolo da Tabela 2 da ResACEUnet (recortes 96³ metade em falha, média por recorte; no código deles
    precisão e recall estão trocados).
-6. **`Marlim/1 - Predict.ipynb`** — bloco real. Lê `Dataset/marlim/patch_<id>/*.dat` (float32 cru, shape no
-   `patch_metadata.json`), roda `SlidingWindow` **na janela em que a rede foi treinada** (peso de Hanning na emenda,
+6. **`Marlim/1 - Predict.ipynb`** — bloco real. Lê `Marlim/files/patches/<id>/tiles/*.dat` (float32 cru, shape no
+   `patch_metadata.json` da mesma pasta), roda `SlidingWindow` **na janela em que a rede foi treinada** (peso de Hanning na emenda,
    `OVERLAP` configurável) e grava as máscaras em `Model/Backup/model_N/marlim/patch_<id>/masks` + `predict.json`;
-   pula modelo treinado com `normalize` false, porque o Marlim está em `[0,1]`.
+   só prediz modelo com `scaling` `'normalize'` ou `'percentile'`, porque o Marlim está em `[0,1]`.
 7. **`Marlim/2 - Analysis.ipynb`** — remonta o volume predito, extrai sticks (`FaultStickExtractor`) e compara com a
    interpretação do especialista (`FaultComparer`, contra `Marlim/files/patches/<id>/<id>_interpretado.png`, inline
    anotada em `Marlim/files/cache`); sai figura em `Marlim/files/comparisons/` e o CSV `sticks_report_<base>.csv`.

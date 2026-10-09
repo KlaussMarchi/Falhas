@@ -77,9 +77,9 @@
                                                                               com o especialista → figuras + CSV
 
  Ramo de calibração do gerador (pesquisa):
-   Dataset/marlim/patch_<id>/*.dat + anotação ─► Marlim/Regions/Marlim/Analysis.ipynb ─► tiles reais calm / faulted / dead
-                                                                                          │
-                                   Marlim/Regions/Synthetic/Analysis.ipynb ◄──────────────┘
+   Marlim/files/patches/<id>/tiles/*.dat + anotação ─► Marlim/Regions/Marlim/Analysis.ipynb ─► tiles reais calm / faulted / dead
+                                                                                                    │
+                                             Marlim/Regions/Synthetic/Analysis.ipynb ◄──────────────┘
                                    (ImageSimilarity + Calibration + CMA-ES do Nature)
                                                          │
                                    SyntheticGenerator.dataset() ─► Dataset/dataset_regions/original/faulted
@@ -265,10 +265,10 @@ Todos são 220 volumes 128³ (exceto o misto), com ~7% dos voxels rotulados como
 |---|---|---|---|
 | `dataset_74` | `SyntheticGenerator` com `Dataset/dataset_74/synthetic.json` | 220 tiles, 5–9 falhas por tile | a configuração que vira o padrão da classe; o melhor dado conhecido para transferir ao Marlim |
 | `dataset_wu` | FaultSeg3D (Wu et al., 2019) | 220 `.dat` float32 128³ (`original/`), já padronizados | o *benchmark* público; ~7% de falha, ~2–3 planos por volume, mergulho mediano ~76° |
-| `dataset_zu` | `200-20.zip` dos autores da ResACEUnet (Zenodo 20339874) | 220 `.npy` | **é o FaultSeg3D bit a bit**, só renumerado (o `Compare.ipynb` e o `README.md` da pasta provam e trazem o mapa); hoje formatado com `normalize = false` |
-| `dataset_74_wu` | misto | 110 primeiros do `dataset_74` + 220 do `dataset_wu` = 330 | aponta para os arquivos das fontes; recusa fonte com outra normalização; apagar o `DataBase.csv` de uma fonte quebra este |
+| `dataset_zu` | `200-20.zip` dos autores da ResACEUnet (Zenodo 20339874) | 220 `.npy` | **é o FaultSeg3D bit a bit**, só renumerado (o `Compare.ipynb` e o `README.md` da pasta provam e trazem o mapa); hoje formatado com `scaling: 'standardize'` |
+| `dataset_74_wu` | misto | 110 primeiros do `dataset_74` + 220 do `dataset_wu` = 330 | aponta para os arquivos das fontes; roda o `Format` da fonte que estiver sem `DataBase.csv` ou em outro `scaling` |
 | `dataset_regions` | calibração por região (`Marlim/Regions/Synthetic`) | 220 tiles `faulted`, crus e saturados em ±2,42 | `synthetic.json` guarda as opções e a semente; hoje sem `DataBase.csv` |
-| `marlim_opt` | `MarlimSyntheticGenerator` (`Marlim/files/Generator.ipynb`) | 220 tiles | gerador próprio, copiado do bloco real (coluna virtual com perfis por profundidade); legado, formatado com o percentil antigo |
+| `marlim_opt` | `MarlimSyntheticGenerator` (`Marlim/files/Generator.ipynb`) | 220 tiles | gerador próprio, copiado do bloco real (coluna virtual com perfis por profundidade); legado, formatado com `scaling: 'percentile'` (o ganho global do gerador pede o percentil do conjunto) |
 
 Estatísticas dos `DataBase.csv` atuais (min-max por volume): média ~0,50 em todos, desvio médio 0,126 (`dataset_74`),
 0,100 (`dataset_wu`), 0,108 (`dataset_74_wu`); `dataset_zu` padronizado (média 0, desvio 1).
@@ -284,19 +284,24 @@ Cada dataset tem o seu `Dataset/<nome>/Format.ipynb`, que roda com o diretório 
 2. Lê `original/images` e `original/masks` (ou `original/*/images` quando há regiões), corrigindo os eixos quando o
    dado vem de fora (`formatAxis`, transposição `(0, 2, 1)`). O `dataset_zu` baixa o zip do Zenodo se faltar volume e
    confere o md5.
-3. **Normaliza cada volume** pela chave `normalize` do `info.json`:
-   - `true` (padrão, decisão de 06/10/2026 em todos os `Format`): **min-max do próprio volume** para $[0,1]$, sem
-     percentil nem corte, $I' = (I - \min I)/(\max I - \min I)$;
-   - `false`: **padronização** do volume, $I' = (I-\mu)/\sigma$ (o passo do artigo da ResACEUnet).
+3. **Escalona cada volume** pela chave `scaling` do `info.json`, com a `Normalization` do `Dataset/index.py`:
+   - `'normalize'` (padrão sem a chave, decisão de 06/10/2026): **min-max do próprio volume** para $[0,1]$,
+     $I' = (I - \min I)/(\max I - \min I)$;
+   - `'percentile'`: corte no p01/p99 **do conjunto inteiro**, reescalado para $[0,1]$,
+     $I' = (\mathrm{clip}(I, p_{01}, p_{99}) - p_{01})/(p_{99} - p_{01})$ (o `marlim_opt`, cujo gerador tem ganho global);
+   - `'standardize'`: **padronização** do volume, $I' = (I-\mu)/\sigma$ (o passo do artigo da ResACEUnet);
+   - `null`: o volume cru.
 4. Grava `images/` e `masks/` e o **`DataBase.csv`**, uma linha por volume: `id`, `img_min`, `img_max`, `img_mean`,
-   `img_std`, `msk_min`, `msk_max`, `shape`, `img_path`, `mask_path` (absolutos) e `normalize`.
+   `img_std`, `msk_min`, `msk_max`, `shape`, `img_path`, `mask_path` (absolutos) e `scaling`.
 5. Com `img_size: null` (o caso normal) termina em `sys.exit` — no papermill isso aparece como erro, mas tudo já foi
    gravado. Com `img_size` preenchido, o `TilesBuilder` corta os volumes em blocos sem sobreposição
    (`tiles/{images,masks}`, imagem com borda por reflexão, máscara com zero) e o `DataBase.csv` aponta para os blocos.
 
-**Trava de normalização:** o `1 - Model`, o `0 - Model_CV` e o `3 - Predict` param com erro se a coluna `normalize`
+**Trava de normalização:** o `1 - Model`, o `0 - Model_CV` e o `3 - Predict` param com erro se a coluna `scaling`
 do `DataBase.csv` não bater com a da rodada (sem a coluna, vale min-max); o `Task/index.py` refaz o `Format` quando ela
-difere.
+difere. O `dataset_74_wu` não tem `images/` próprios (junta os do `dataset_74` e do `dataset_wu`) e roda, por
+papermill, o `Format` da fonte que não estiver no `scaling` da rodada; no percentil, cada fonte fica com o p01/p99 dela.
+O `getFiles`, o `setFolder`, o `showTile` e o `TilesBuilder` também vêm do `Dataset/index.py`.
 
 > **Armadilha medida:** com `img_size` preenchido, o split do treino é **por bloco**, não por volume — blocos do mesmo
 > volume caem em treino e teste. Os modelos de 64³ e 32³ que pareciam bater o 128³ no IoU sintético tinham esse
@@ -316,7 +321,7 @@ difere.
 | `network` | texto | nome no `ModelNetwork.get()`: `unet_3d`, `dbrnet`, `segresnet`, `resaceunet_grva`, `resaceunet_wu`, `resaceunet_zu`, `macnn`, `fault_seg_net`, `nru_net`, `fault_edge_former` |
 | `dataset` | texto | pasta em `Dataset/` |
 | `img_size` | `null` ou lista | `null` = volume inteiro; lista = o `Format` corta em blocos (ver armadilha acima) |
-| `normalize` | bool (`true`) | min-max (`true`) ou padronização (`false`) por volume |
+| `scaling` | texto (`'normalize'`) | `'normalize'` (min-max por volume), `'percentile'` (p01/p99 do conjunto), `'standardize'` (média 0, desvio 1 por volume) ou `null` (cru) |
 | `lr` | float | taxa de aprendizado do AdamW (o pico, na agenda `cosine`) |
 | `loss` | texto | `cross_entropy`, `dice_focal`, `dice_ce`, `focal`, `smooth_dice`, `compound`, `tversky` |
 | `batch_size` | int | volumes (ou recortes) por passo |
@@ -337,7 +342,7 @@ difere.
 - `cd Task && python index.py` percorre a lista. Para cada rodada:
   1. grava a rodada no `Task/info.json`;
   2. executa `Dataset/<dataset>/Format.ipynb` — **pulado** quando o `DataBase.csv` já existe, `img_size` é `null` e a
-     coluna `normalize` dele bate com a da rodada;
+     coluna `scaling` dele bate com a da rodada;
   3. executa `Model/1 - Model.ipynb` uma vez por trial (`n_trials`), gravando `trial` no `info.json` antes de cada
      execução.
 - A execução é por **papermill** (kernel `python3`, `cwd` = pasta do notebook); a saída executada vai para
@@ -450,12 +455,13 @@ já derruba o IoU para ~0,41; ele funciona como medida de precisão de posiciona
 ### 10.1 Organização
 
 - Bloco completo $3530 \times 1601 \times 2240$ em `(inline, z, xline)`.
-- Quatro **patches** (`Dataset/marlim/patch_{1200,1300,1400,2600}`), cada um um slab de inlines em volta da inline
+- Quatro **patches** (`Marlim/files/patches/{1200,1300,1400,2600}/tiles`, ao lado da interpretação), cada um um slab de inlines em volta da inline
   de mesmo número, cortado em **910 tiles** `.dat` (float32 cru, 128³) com 32 voxels de sobreposição de cada lado
   (passo 64, núcleo central de 64³ por tile): grade `1 × 26 × 35`. O `patch_metadata.json` descreve forma original (`64 × 1601 × 2240`, o núcleo do slab), passo,
   sobreposição e normalização.
 - Os `.dat` foram normalizados para $[0,1]$ pelo **p01/p99 do próprio bloco** (`vmin = −1,365`, `vmax = 1,351`); a
-  água é uma constante (~0,503). Os modelos treinados com `normalize = false` não se aplicam ao Marlim e são pulados.
+  água é uma constante (~0,503). Só os modelos com `scaling` `'normalize'` ou `'percentile'` (dado em $[0,1]$) se
+  aplicam ao Marlim; os outros são pulados.
 - Os 128 inlines de cada `.dat` são dados reais (vizinhos correlacionam ≥ 0,99); só as bordas em z e xline têm
   preenchimento por reflexão.
 
@@ -486,7 +492,7 @@ já derruba o IoU para ~0,41; ele funciona como medida de precisão de posiciona
 - Configuração no topo: `BASE_PATH` (pasta dos modelos: `../Model/Backup`, `../Documents/Backups/...`), `PATCH_IDS`,
   `MODELS` (vazio = todos), `OVERLAP` (0,25), `WINDOW` (`None` = a janela do treino) e `SKIP_DONE`.
 - `MarlimPredictor` carrega cada modelo pelo `info.json` (`ModelNetwork(**model)` + `model.pth`), pula os de
-  `normalize = false` e os patches já preditos.
+  `scaling` fora de `'normalize'`/`'percentile'` e os patches já preditos.
 - **`SlidingWindow`** prediz cada tile 128³ **na janela em que a rede foi treinada**:
   - posições a cada `round(janela·(1 − OVERLAP))` voxels, com a última encostada no fim do tile; janela maior que o
     tile → o tile é estendido por reflexão;
@@ -714,8 +720,8 @@ números de backups antigos estão em `Documents/Backups`.
 - **Dado:** o `synthetic.json` de cada dataset sintético guarda as opções e a semente; cada tile é reproduzível isolado
   (semente `seed + i`). O gerador na GPU repete o gerador histórico com diferença ≤ 1,5e-8 na imagem e máscara
   idêntica.
-- **Formatação:** determinística (min-max ou padronização do próprio volume); a coluna `normalize` trava o par
-  dado/rodada.
+- **Formatação:** determinística (min-max, percentil do conjunto ou padronização do volume); a coluna `scaling` trava
+  o par dado/rodada.
 - **Split:** fixo (`random_state = 42`) e gravado no `division`; o `3 - Predict` o refaz e confere.
 - **Treino:** semente `42 + trial`, cuDNN determinístico, aumentação com semente própria por (trial, época, índice). Na
   prática os históricos por época se repetem até a terceira casa (algumas operações da CUDA com soma atômica no

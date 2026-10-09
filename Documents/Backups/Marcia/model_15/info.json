@@ -14,6 +14,7 @@
         "network": "resaceunet_wu",
         "dataset": "dataset_74_wu",
         "img_size": null,
+        "scaling": "percentile",
         "lr": 0.001,
         "loss": "dice_focal",
         "batch_size": 2,

@@ -1,1 +1,1 @@
-{"network": "dbrnet", "dataset": "dataset_74_wu", "img_size": null, "normalize": true, "lr": 0.001, "loss": "dice_focal", "batch_size": 2, "scheduler": "plateau", "dropout": 0.1, "num_filters": 32, "ema": false, "epochs": 100, "n_trials": 1, "trial": 0}
+{"network": "resaceunet_zu", "dataset": "dataset_74_wu", "img_size": null, "scaling": "normalize", "lr": 0.001, "loss": "dice_focal", "batch_size": 2, "scheduler": "plateau", "dropout": 0.1, "num_filters": 32, "ema": false, "epochs": 100, "n_trials": 1, "trial": 0}
