@@ -1,0 +1,202 @@
+[
+  {
+    "run": 1,
+    "at": "2026-08-31T01:36:51",
+    "model": "genetic",
+    "score": 8.004070067704813,
+    "improved": true,
+    "stopped": 24,
+    "best": {
+      "x": 2.003663306621775,
+      "y": 1.9973490985309272
+    },
+    "params": {
+      "population": 20,
+      "generations": 25,
+      "sigma": 6.0,
+      "patience": null,
+      "target": null,
+      "maxNfe": 500
+    }
+  },
+  {
+    "run": 2,
+    "at": "2026-08-31T01:40:14",
+    "model": "genetic",
+    "score": 8.000000000000368,
+    "improved": true,
+    "stopped": 279,
+    "best": {
+      "x": 1.9999995756834459,
+      "y": 2.000000424316556
+    },
+    "params": {
+      "population": 20,
+      "generations": 375,
+      "sigma": 6.0,
+      "patience": null,
+      "target": null,
+      "maxNfe": 7500
+    }
+  },
+  {
+    "run": 3,
+    "at": "2026-08-31T01:48:57",
+    "model": "genetic",
+    "score": 8.000000000000368,
+    "improved": false,
+    "stopped": 417,
+    "best": {
+      "x": 1.9999995756834459,
+      "y": 2.000000424316556
+    },
+    "params": {
+      "population": 20,
+      "generations": 375,
+      "sigma": 6.0,
+      "patience": null,
+      "target": null,
+      "maxNfe": 7500
+    }
+  },
+  {
+    "run": 4,
+    "at": "2026-08-31T02:39:22",
+    "model": "genetic",
+    "score": 8.000000000000368,
+    "improved": false,
+    "stopped": 511,
+    "best": {
+      "x": 1.9999995756834459,
+      "y": 2.000000424316556
+    },
+    "params": {
+      "population": 20,
+      "generations": 375,
+      "sigma": 6.0,
+      "patience": null,
+      "target": null,
+      "maxNfe": 7500
+    }
+  },
+  {
+    "run": 5,
+    "at": "2026-08-31T08:11:08",
+    "model": "genetic",
+    "score": 8.000000000000368,
+    "improved": false,
+    "stopped": 592,
+    "best": {
+      "x": 1.9999995756834459,
+      "y": 2.000000424316556
+    },
+    "params": {
+      "population": 20,
+      "generations": 375,
+      "sigma": 6.0,
+      "patience": null,
+      "target": null,
+      "maxNfe": 7500
+    }
+  },
+  {
+    "run": 6,
+    "at": "2026-08-31T15:24:14",
+    "model": "genetic",
+    "score": 8.000000000000368,
+    "improved": false,
+    "stopped": 638,
+    "best": {
+      "x": 1.9999995756834459,
+      "y": 2.000000424316556
+    },
+    "params": {
+      "population": 20,
+      "generations": 375,
+      "sigma": 6.0,
+      "patience": null,
+      "target": null,
+      "maxNfe": 7500
+    }
+  },
+  {
+    "run": 7,
+    "at": "2026-08-31T15:25:44",
+    "model": "genetic",
+    "score": 8.000000000000368,
+    "improved": false,
+    "stopped": 684,
+    "best": {
+      "x": 1.9999995756834459,
+      "y": 2.000000424316556
+    },
+    "params": {
+      "population": 20,
+      "generations": 375,
+      "sigma": 6.0,
+      "patience": null,
+      "target": null,
+      "maxNfe": 7500
+    }
+  },
+  {
+    "run": 8,
+    "at": "2026-08-31T15:26:39",
+    "model": "genetic",
+    "score": 8.000000000000368,
+    "improved": false,
+    "stopped": 730,
+    "best": {
+      "x": 1.9999995756834459,
+      "y": 2.000000424316556
+    },
+    "params": {
+      "population": 20,
+      "generations": 375,
+      "sigma": 6.0,
+      "patience": null,
+      "target": null,
+      "maxNfe": 7500
+    }
+  },
+  {
+    "run": 9,
+    "at": "2026-09-01T13:40:09",
+    "model": "genetic",
+    "score": 8.000000000000368,
+    "improved": false,
+    "stopped": 776,
+    "best": {
+      "x": 1.9999995756834459,
+      "y": 2.000000424316556
+    },
+    "params": {
+      "population": 20,
+      "generations": 375,
+      "sigma": 6.0,
+      "patience": null,
+      "target": null,
+      "maxNfe": 7500
+    }
+  },
+  {
+    "run": 10,
+    "at": "2026-09-02T16:55:52",
+    "model": "genetic",
+    "score": 8.000000000000368,
+    "improved": false,
+    "stopped": 817,
+    "best": {
+      "x": 1.9999995756834459,
+      "y": 2.000000424316556
+    },
+    "params": {
+      "population": 20,
+      "generations": 375,
+      "sigma": 6.0,
+      "patience": null,
+      "target": null,
+      "maxNfe": 7500
+    }
+  }
+]

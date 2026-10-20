@@ -5,13 +5,13 @@
         "scheduler": "plateau",
         "epochs": 100,
         "batch_size": 2,
-        "ema": false,
+        "ema": true,
         "trial": 0,
-        "val_iou": 0.7492445111274719,
-        "test_iou": 0.6856568455696106
+        "val_iou": 0.8155084252357483,
+        "test_iou": 0.7541292309761047
     },
     "processing": {
-        "network": "resaceunet_zu",
+        "network": "fault_seg_net",
         "dataset": "dataset_74_wu",
         "img_size": null,
         "scaling": "normalize",
@@ -21,7 +21,7 @@
         "scheduler": "plateau",
         "dropout": 0.1,
         "num_filters": 32,
-        "ema": false,
+        "ema": true,
         "epochs": 100,
         "n_trials": 1,
         "trial": 0
@@ -37,7 +37,7 @@
         }
     },
     "model": {
-        "network": "resaceunet_zu",
+        "network": "fault_seg_net",
         "img_size": [
             128,
             128,
@@ -50,6 +50,6 @@
         "lr": 0.001
     },
     "iou": {
-        "mean": 0.6856568455696106
+        "mean": 0.7541292309761047
     }
 }

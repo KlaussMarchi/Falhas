@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
 
 
 # REAMOSTRAGEM DO DECODER: TRILINEAR, O MESMO QUE AS OUTRAS REDES 3D DAQUI USAM PARA SUBIR
@@ -76,13 +77,18 @@ class MultiScaleResidual(nn.Module):
 # ATENCAO FAULT-SEG (FIGURA 3): SUBSTITUI A CONCATENACAO DA SKIP POR UMA ATENCAO ESPACIAL POR CANAL.
 # F_q (encoder) e F_k (decoder reamostrado) sao concatenados e projetados de volta a C canais (eq. 5); duas
 # 1-convs desse fundido dao a matriz S por produto e softmax (eq. 6); S pondera F_v e o resultado volta por
-# soma (eq. 7). O eixo dos tokens e o tempo (z): na figura 3 a matriz S e H x H, e H e o eixo vertical da
+# soma (eq. 7). O eixo dos tokens e o tempo (z): na figura 3 a matriz S e C x H x H, e H e o eixo vertical da
 # secao sismica - o mesmo em que a falha se prolonga e em que a segmentacao perde continuidade.
-# A norma sobre F_l e o fator 1/sqrt(d) nao estao no artigo, que trabalha em 2D com d = W; em 3D d = x*y e
-# 128 vezes maior. Medido na inicializacao, com os 128 tokens de z de um tile 128^3, o peso maximo medio de
-# cada linha de S (uniforme daria 0.008): 0.713 como o artigo escreve - ou seja, S ja nasce quase one-hot e
-# a atencao nao tem o que aprender; 0.916 so com a norma; 0.020 so com a escala, quase uniforme demais;
-# 0.131 com os dois, que e a unica combinacao que comeca informativa
+# S E POR SECAO INLINE, COMO NO ARTIGO: ele e 2D e cada S compara as linhas de UMA secao ao longo dos seus W
+# tracos (d = W = 128). A versao anterior deste port achatava o plano x*y inteiro na dimensao da feature
+# (d = 16384 no estagio 1). Agora cada fatia x tem a sua S de z por z sobre os tracos y dela, a escala 1/sqrt(d)
+# volta a ser a do 2D, e o produto passa pelo scaled_dot_product_attention, que nao materializa as (lote*canal*x)
+# matrizes de S. A norma sobre F_l continua (sem ela S nasce quase one-hot, peso maximo medio 0.71 por linha).
+# O QUE A REDE APRENDE AQUI, NAS DUAS VERSOES: S uniforme. Peso na diagonal 0.04-0.06 no model_6 antigo e 0.010
+# nesta (o uniforme e 1/128 = 0.008), distancia media |z - z'| de 42-45 contra 42.7 do uniforme - a atencao soma,
+# em cada coluna (x, y), a media vertical das features de todas as profundidades (66% da norma do fundido), um vies
+# "falha atravessa o tile na vertical" que o sintetico premia. A rede depende dele: zerar o termo na inferencia leva
+# a mascara no Marlim de 3.5% para 9.1% da secao. E o proprio mecanismo do artigo com este dado, nao erro do port
 class FaultSegAttention(nn.Module):
     def __init__(self, channels, norm='group'):
         super().__init__()
@@ -91,24 +97,17 @@ class FaultSegAttention(nn.Module):
         self.query = nn.Conv3d(channels, channels, kernel_size=1, bias=False)
         self.key   = nn.Conv3d(channels, channels, kernel_size=1, bias=False)
 
-    # (lote, canal, x, z, y) -> (lote*canal, z, x*y): cada canal vira uma matriz propria, como na figura 3
+    # (lote, canal, x, z, y) -> (lote*canal*x, 1, z, y): cada canal de cada secao inline vira uma matriz propria
     def tokens(self, x):
         batch, channels, sx, sz, sy = x.shape
-        return x.permute(0, 1, 3, 2, 4).reshape(batch * channels, sz, sx * sy)
-
-    def volume(self, flat, shape):
-        batch, channels, sx, sz, sy = shape
-        return flat.reshape(batch, channels, sz, sx, sy).permute(0, 1, 3, 2, 4)
+        return x.reshape(batch * channels * sx, 1, sz, sy)
 
     def forward(self, down, up, neighbors):
         fused = self.norm(self.fuse(torch.cat([down, up], dim=1)))
         query = self.tokens(self.query(fused))
         key   = self.tokens(self.key(fused))
-        scale = query.shape[-1] ** -0.5
-
-        scores = torch.softmax(torch.bmm(query, key.transpose(1, 2)) * scale, dim=-1)
-        mixed  = torch.bmm(scores, self.tokens(neighbors))
-        return self.volume(mixed, fused.shape) + fused
+        mixed = F.scaled_dot_product_attention(query, key, self.tokens(neighbors.contiguous()))
+        return mixed.reshape(fused.shape) + fused
 
 
 # PERDA DO MSR (EQUACAO 4): DISTANCIA ENTRE A FEATURE LOCAL E A REFINADA, AMBAS NORMALIZADAS EM L2 - ela
@@ -147,6 +146,10 @@ class FaultSegNet(nn.Module):
     # tambem, entao prende o encoder a um criterio que nao e o da segmentacao. ETA = 0.7 volta ao artigo
     ETA = 1.0
 
+    # O MSR E O DECODER DO ESTAGIO 1 (RESOLUCAO PLENA) SAO RECALCULADOS NA BACKWARD EM VEZ DE GUARDADOS: COM f=32 EM 128^3 E LOTE 2 A
+    # REDE PASSAVA DE 19 GiB E NAO DIVIDIA A PLACA COM MAIS NADA. Sem dropout nem estado dentro deles, a saida e a mesma
+    CHECKPOINT = True
+
     def __init__(self, in_channels=1, num_classes=1, base_filters=16, dropout_rate=0.0,
                  input_shape=(128, 128, 128), norm='group'):
         super().__init__()
@@ -165,6 +168,9 @@ class FaultSegNet(nn.Module):
         self.refiners  = nn.ModuleList([MultiScaleResidual(width, norm) for width in skips])
         self.neighbors = nn.ModuleList([ConvBlock(width, width, self.NEIGHBOR, 1, norm) for width in skips])
 
+        # A SAIDA DO QUINTO ESTAGIO PASSA POR UMA CONV 3x3 + ReLU ANTES DE SUBIR (A SETA VERTICAL DO FUNDO DA FIGURA 1)
+        self.bottom = ConvBlock(widths[-1], widths[-1], 3, 1, norm)
+
         self.ups        = nn.ModuleList([nn.Conv3d(deep, width, kernel_size=1) for width, deep in zip(skips, widths[1:])])
         self.attentions = nn.ModuleList([FaultSegAttention(width, norm) for width in skips])
         self.decoders   = nn.ModuleList([ConvBlock(width, width, 3, 1, norm) for width in skips])
@@ -178,6 +184,17 @@ class FaultSegNet(nn.Module):
     def compose(self, loss):
         return self.ETA * loss + (1.0 - self.ETA) * self.penalty
 
+    def full(self, stage, unit, *args):
+        if self.CHECKPOINT and self.training and stage == 0:
+            return checkpoint(unit, *args, use_reentrant=False)
+
+        return unit(*args)
+
+    # UM ESTAGIO DO DECODER: SOBE O NIVEL DE BAIXO, ATENCAO FAULT-SEG COM A SKIP E A CONV DO ESTAGIO
+    def decode(self, stage, x, skip):
+        up = self.ups[stage](resample(x, skip.shape[2:]))
+        return self.decoders[stage](self.attentions[stage](skip, up, self.neighbors[stage](skip)))
+
     def forward(self, x):
         local, refined = [], []
 
@@ -186,16 +203,15 @@ class FaultSegNet(nn.Module):
 
             if stage < len(self.refiners):
                 local.append(x)
-                x = self.refiners[stage](x)
+                x = self.full(stage, self.refiners[stage], x)
                 refined.append(x)
 
             x = self.drop(x)
 
         self.penalty = msrLoss(local, refined) if self.ETA < 1.0 else 0.0
+        x = self.bottom(x)
 
         for stage in reversed(range(len(self.decoders))):
-            skip = refined[stage]
-            up   = self.ups[stage](resample(x, skip.shape[2:]))
-            x    = self.decoders[stage](self.attentions[stage](skip, up, self.neighbors[stage](skip)))
+            x = self.full(stage, self.decode, stage, x, refined[stage])
 
         return self.out(x)

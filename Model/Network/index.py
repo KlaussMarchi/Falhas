@@ -14,6 +14,7 @@ from .types.FaultSegNet import FaultSegNet
 from .types.NRUNet import NRUNet
 from .types.MACNN  import MACNN
 from .types.FaultEdgeFormer import FaultEdgeFormer
+from .types.NRASANet import NRASANet
 
 
 class ModelNetwork:
@@ -80,5 +81,9 @@ class ModelNetwork:
         # TRANSFORMER COM SOBEL TREINÁVEL NAS BORDAS (DI ET AL. 2026, 4 - FaultEdgeFormer_...pdf)
         if self.network == 'fault_edge_former':
             return FaultEdgeFormer(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
+
+        # ENCODER RESIDUAL ANINHADO COM CRA E DECODER DE ATENCAO DE DUAS CABECAS (SUN ET AL. 2025, 2 - A hybrid network for...pdf)
+        if self.network == 'nra_sanet':
+            return NRASANet(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
 
         return None

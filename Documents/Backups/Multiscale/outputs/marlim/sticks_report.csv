@@ -1,0 +1,2 @@
+modelo,rede,janela,iou_teste,overlap,patch,fatia,recall,deteccao,precisao,f1,sticks,falhas_gt,len_p50,len_total,len_total_gt
+model_6,fault_seg_net,128×128×128,0.7021,0.25,1200,16,0.639,0.545,0.214,0.321,94,33,247.0,30118,7454

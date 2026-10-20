@@ -2,8 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Segmentação de falhas geológicas em sísmica 3D: gera volumes sintéticos, treina redes 3D neles e prediz no bloco real de
-Marlim. Não há build, lint nem suíte de testes — a verificação é rodar o notebook de cima para baixo e comparar os números.
+Segmentação de falhas geológicas em sísmica 3D: gera volumes sintéticos, treina redes 3D neles e prediz nos blocos reais
+de `Blocks/` — Marlim (com a interpretação do especialista, onde o resultado é medido) e Iracema (sem interpretação). Não
+há build, lint nem suíte de testes — a verificação é rodar o notebook de cima para baixo e comparar os números.
 
 ## Ambiente e execução
 
@@ -23,23 +24,39 @@ conda activate torch-gpu           # ou: conda run -n torch-gpu python ...
 - **Um notebook só:** abra no Jupyter/VS Code com o kernel `torch-gpu`, ou
   `papermill <nb> /tmp/out.ipynb -k python3 --cwd <pasta do nb>` — todo caminho dentro de um notebook é relativo à
   **pasta dele**, então o `cwd` errado quebra tudo.
-- GPU: o treino roda com AMP só quando o `info.json` tem `"amp": true` (padrão desligado), `epochs` do `info.json` (padrão 100) e early stopping sobre
+- GPU (Quadro P6000 de 24 GB, Pascal: AMP não acelera e float64 roda a 1/32 do float32): o treino roda com AMP só
+  quando o `info.json` tem `"amp": true` (padrão desligado), `epochs` do `info.json` (padrão 100) e early stopping sobre
   `val_iou` com `patience` do `info.json` (padrão 15). Uma rodada custa horas; nunca re-execute um treino para "verificar" sem pedir.
-- `.gitignore` exclui `*.npy`, `*.pth`, `*.dat`, imagens e `*.zip`: datasets, pesos e figuras são locais. Um clone
-  limpo precisa regerar os dados pelo `Synthetic/Generate.ipynb` + `Format.ipynb`.
+- `.gitignore` exclui `*.npy`, `*.pth`, `*.dat`, imagens, `*.zip` e `Articles/`: datasets, blocos reais, pesos e figuras
+  são locais. Um clone limpo precisa regerar os dados pelo `Synthetic/Analysis.ipynb` (seção "APLICANDO DATASET") +
+  `Format.ipynb`.
+- Disco: os patches do Marlim ocupam 29 GB e os do Iracema 302 GB. Predizer um modelo no Marlim grava ~7,3 GB de
+  máscaras por patch, mais 0,9 GB do `predicted.npy`; o Iracema inteiro (~308 GB) não cabe. Confira o espaço antes.
+- Rodadas longas: log fora do `/tmp`, que é apagado no boot. Para encerrar um processo use o PID explícito, porque
+  `pkill -f` e `pgrep -f` casam com a própria linha de comando.
 
 ## Fluxo dos dados
 
 Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anterior gravou:
 
-1. **`Synthetic/index.py` — `SyntheticGenerator`.** Refletividade → dobra → cisalhamento → falhamento → wavelet de
-   Ricker → ruído → corte da margem. `get()` devolve `(image z-scorado, mask)`; `set(options)` sobrescreve os
-   parâmetros (cada atributo é uma faixa `(low, high)` sorteada por tile); `dataset(options, n_jobs)` gera em
-   multiprocesso e grava `<directory>/<output>/{images,masks}/img_XXXX.npy`. O `options` é
-   `{'directory', 'seed', 'regions': {nome: {'n_images', 'output', 'params'}}}` e chave desconhecida levanta erro.
-   `gain`/`gainJitter`/`clip` ajustam contraste por região depois do z-score. O `Synthetic/Generate.ipynb` monta um
-   dataset novo; `Marlim/files/Generator.ipynb` tem um gerador próprio (`MarlimSyntheticGenerator`), copiado do bloco
-   real, que alimenta `Dataset/marlim_opt`.
+1. **`Synthetic/index.py` — `SyntheticGenerator`.** O fluxo do FaultSeg3D (Wu et al. 2019,
+   `Documents/Articles/fault_seg (wu).pdf`): refletividade → dobra → cisalhamento → falhamento → wavelet de Ricker →
+   ruído → corte da margem.
+   - O cubo de 256³ é calculado na GPU em torch float64 e reproduz a versão scipy antiga bit a bit.
+   - `fast = True` sorteia os campos de ruído em float32 na placa: mesma distribuição, outro tile, ~0,7 s por tile
+     contra 2–7 s. Serve só para buscas.
+   - `get()` devolve `(image z-scorado, mask)`.
+   - `set(options)` sobrescreve os parâmetros. Cada atributo é uma faixa `(low, high)` sorteada por tile; o teto do
+     `randint` é exclusivo, então `faultCount (0, 1)` é tile sem falha.
+   - `dataset(options)` gera em série na placa e grava `<directory>/<output>/{images,masks}/img_XXXX.npy`. O `options` é
+     `{'directory', 'seed', 'regions': {nome: {'n_images', 'output', 'params'}}}`, e chave desconhecida levanta erro.
+   - `gain`/`gainJitter`/`clip` ajustam o contraste por região depois do z-score.
+   - Os padrões da classe são a configuração do `dataset_74`, e a ordem dos sorteios do `np.random` define cada tile.
+     Ao mudar uma etapa, confira um tile contra o `git show HEAD:Synthetic/index.py`: a máscara tem de sair idêntica.
+   - O `Synthetic/Analysis.ipynb` mostra cada etapa e monta um dataset novo.
+   - `Synthetic/Regions/Generator.ipynb` tem um gerador próprio (`MarlimSyntheticGenerator`), copiado do bloco real,
+     que alimenta o `Dataset/marlim_opt`.
+   - O `Synthetic/PROMPT.md` é o roteiro da próxima tarefa: calibrar o gerador por bloco.
 2. **`Dataset/<nome>/Format.ipynb`.** Lê `original/*/images|masks`, escalona e grava `images/`, `masks/` e
    o `DataBase.csv` (`id`, estatísticas, `shape`, `img_path`/`mask_path` absolutos, `scaling`). Também reescreve
    `Task/info.json` com o nome do dataset. O que se repete entre os `Format` mora no `Dataset/index.py`: `getFiles`,
@@ -72,39 +89,60 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
    trials); **`Model/3 - Predict.ipynb`** reavalia um modelo salvo no dataset dele e, se ele treinou em recorte, mede
    também pelo protocolo da Tabela 2 da ResACEUnet (recortes 96³ metade em falha, média por recorte; no código deles
    precisão e recall estão trocados).
-6. **`Marlim/1 - Predict.ipynb`** — bloco real. Lê `Marlim/files/patches/<id>/tiles/*.dat` (float32 cru, shape no
-   `patch_metadata.json` da mesma pasta), roda `SlidingWindow` **na janela em que a rede foi treinada** (peso de Hanning na emenda,
-   `OVERLAP` configurável) e grava as máscaras em `Model/Backup/model_N/marlim/patch_<id>/masks` + `predict.json`;
-   só prediz modelo com `scaling` `'normalize'` ou `'percentile'`, porque o Marlim está em `[0,1]`.
-7. **`Marlim/2 - Analysis.ipynb`** — remonta o volume predito, extrai sticks (`FaultStickExtractor`) e compara com a
-   interpretação do especialista (`FaultComparer`, contra `Marlim/files/patches/<id>/<id>_interpretado.png`, inline
-   anotada em `Marlim/files/cache`); sai figura em `Marlim/files/comparisons/` e o CSV `sticks_report_<base>.csv`.
-8. **`Marlim/Regions/Marlim/Analysis.ipynb`** separa o bloco real em tiles `calm`/`faulted`/`dead` por conteúdo
-   (semblance, envelope RMS, distância da falha anotada) → `files/<região>/*.npy` + `files/DataBase.csv`.
-9. **`Marlim/Regions/Synthetic/Analysis.ipynb`** calibra o gerador contra o `faulted` real. A `ImageSimilarity` mede a
-   distância pelos olhos de uma rede de falhas (KID do gargalo da `Unet3D_V2` em `Regions/Synthetic/model/`, treinada no
-   `dataset_wu`); o objetivo da `Calibration` é a média ponderada dessa similaridade com o IoU da rede nos rótulos do
-   lote. A busca parte da configuração do `dataset_74`, grava o `Dataset/dataset_regions` (220 tiles, com
-   `synthetic.json`) e guarda as campanhas retomáveis em `files/memory/`.
-10. **`Nature/`** — framework mono-objetivo de otimização usado pela calibração. `NatureSelector(nome, params, memory)`
-    escolhe entre `genetic` (CMA-ES, aceita `mean` para a primeira nuvem nascer num ponto conhecido), `pso`, `de`,
-    `lshade`, `lsrtde` e delega `update()`/`portrait()`/`info()`; `Problem` traduz `{variável: {'type', 'bounds'}}` em
-    genoma; `Memory` persiste `state.npz`/`best.json`/`history.json`.
-11. **`Documents/Marcia/model_N/`** e **`Documents/Backup/`** guardam modelos antigos/externos no formato de
-    `Model/Backup`; os notebooks do Marlim trocam a pasta pelo `BASE_PATH`. `Documents/Articles/` tem os PDFs das redes
-    implementadas (fora do git).
+6. **`Blocks/Marlim/Analysis.ipynb`** — o bloco real com interpretação. Predição e análise ficam num notebook só.
+   - **Configuração:** `BASE_PATH` (a pasta dos `model_N/`: `../../Model/Backup` ou `../../Documents/Backups/<campanha>`),
+     `MODELS`, `PATCH_IDS`, `OVERLAP`, `WINDOW` e os botões do extrator (`STICK_TOL 0.80`, `STICK_MIN 140`,
+     `STICK_GAP 59`, calibrados no patch 1200).
+   - **Entrada:** `files/patches/<id>/tiles/*.dat`, float32 cru em `[0,1]` (p01/p99 do bloco), eixos
+     `(inline, z, xline)`, shape no `patch_metadata.json` da mesma pasta. Os 128 inlines de cada `.dat` são reais; o
+     `original_shape` de 64 é só o miolo.
+   - **Predição:** roda a `SlidingWindow` **na janela em que a rede foi treinada**, com peso de Hanning na emenda, e
+     grava `masks/` + `predict.json` + `predicted.npy` em `<BASE_PATH>/<modelo>/marlim/patch_<id>`. Só prediz modelo com
+     `scaling` `'normalize'` ou `'percentile'`.
+   - **Análise:** extrai sticks (`FaultStickExtractor`) e compara com o especialista (`FaultComparer`, contra
+     `files/patches/<id>/<id>_interpretado.png`). A inline anotada não é a central; o índice dela está em
+     `files/cache/inline_index.json`.
+   - **Saída:** figuras e `sticks_report.csv` em `<BASE_PATH>/outputs/marlim`.
+   - A anotação é parcial (só as falhas principais): a precisão é limite inferior e o F1 premia marcar pouco.
+7. **`Blocks/Iracema/Analysis.ipynb`** — o mesmo notebook para o Iracema, que não tem interpretação: só figuras e o
+   resumo da inline. Os tiles ficam soltos em `files/patches/`, com um `files/patch_metadata.json` (2751 × 2000 × 1754,
+   38 528 tiles). Com `FULL_PREDICT = False` ele prediz só os tiles que cobrem a `INLINE`.
+8. **`Synthetic/Regions/Marlim/Analysis.ipynb`** separa o bloco real em tiles `calm`/`faulted`/`dead` por conteúdo
+   (semblance, envelope RMS, distância da falha anotada) → `files/<região>/*.npy` + `files/DataBase.csv`, com
+   `img_path` absoluto. Os patches continuam sendo lidos de `Blocks/Marlim/files/patches`.
+9. **`Synthetic/Regions/Synthetic/Analysis.ipynb`** calibra o gerador contra o `faulted` real com o CMA-ES do
+   `Synthetic/Nature`.
+   - A `ImageSimilarity` mede a distância pelos olhos de uma rede de falhas: o KID do gargalo da `Unet3D_V2` em
+     `Regions/Synthetic/model/`, treinada no `dataset_wu`, mais a fração detectada e o período vertical.
+   - O objetivo da `Calibration` soma essa similaridade à largura dos intervalos (genoma em centro + log da largura). O
+     IoU da rede nos rótulos entra só como piso por tile.
+   - A busca parte da configuração do `dataset_74`, grava o `Dataset/dataset_regions` (220 tiles, com `synthetic.json`) e
+     guarda as campanhas retomáveis em `files/memory/`.
+   - O `model/info.json` ainda chama a rede de `unet3d_v2`, nome que o `ModelNetwork` não reconhece mais.
+10. **`Synthetic/Nature/`** — framework mono-objetivo de otimização usado pela calibração.
+    - É importado com a raiz do repositório no path: `from Synthetic.Nature.index import NatureSelector`.
+    - `NatureSelector(nome, params, memory)` escolhe entre `genetic` (CMA-ES; aceita `mean` para a primeira nuvem nascer
+      num ponto conhecido), `pso`, `de`, `lshade` e `lsrtde`, e delega `update()`/`portrait()`/`info()`.
+    - `Problem` traduz `{variável: {'type', 'bounds'}}` em genoma.
+    - `Memory` persiste `state.npz`/`best.json`/`history.json`.
+11. **`Documents/Backups/<campanha>/model_N/`** (`Artigo`, `Marcia`, `Multiscale`) guarda modelos de campanhas
+    anteriores no formato de `Model/Backup`, com as figuras dos blocos em `outputs/`; os notebooks dos blocos trocam a
+    pasta pelo `BASE_PATH`. `Documents/Articles/` tem os PDFs das redes implementadas e o do FaultSeg3D (fora do git).
 
 ## Convenções que atravessam o repositório
 
 - **Módulo é pasta com `index.py`** exportando o tipo principal: `from Network.index import ModelNetwork`,
-  `from Losses.index import Losses`, `from Nature.index import NatureSelector`. Notebook fora da pasta ajusta o path
-  (`sys.path.append('../Model')`, `sys.path.append('../../..')`). Importar módulo nunca executa trabalho.
+  `from Losses.index import Losses`, `from Synthetic.Nature.index import NatureSelector`. Notebook fora da pasta ajusta
+  o path (`sys.path.append('../../Model')` nos `Blocks/`, `sys.path.append('../../..')` no `Synthetic/Regions/Synthetic`).
+  Importar módulo nunca executa trabalho.
 - **Eixos:** os datasets são gravados em `(x, z, y)` — o `saveTile` transpõe `(0, 2, 1)` na saída do gerador, e
-  `Synthetic/utils.formatAxis` faz o mesmo para visualizar. Os tiles reais das regiões são `(inline, z, xline)`.
+  `Synthetic/utils.formatAxis` faz o mesmo para visualizar. Os tiles reais (os `.dat` dos blocos e as regiões) são
+  `(inline, z, xline)`, o mesmo arranjo.
 - **Nova rede:** arquivo em `Model/Network/types/X.py`, import e um `if` em `ModelNetwork.get()` com uma linha
   MAIÚSCULA citando a origem; o nome usado ali é o que vai em `Task/info.json`. Hoje: `unet_3d`, `dbrnet`,
   `segresnet`, `resaceunet_grva`, `resaceunet_wu` (a `ResACEUNet2` atual do repositório dos autores),
-  `resaceunet_zu` (a do artigo, 3 estágios, do primeiro commit), `macnn`, `fault_seg_net`, `nru_net`, `fault_edge_former`.
+  `resaceunet_zu` (a do artigo, 3 estágios, do primeiro commit), `macnn`, `fault_seg_net`, `nru_net`, `fault_edge_former`,
+  `nra_sanet`. A `dbrnet` é a antiga `unet3d_v2`: um `info.json` com o nome velho só carrega trocando o nome.
 - **Nova loss:** classe em `Model/Losses/index.py` e entrada em `Losses.options` (`cross_entropy`, `dice_focal`,
   `dice_ce`, `focal`, `smooth_dice`, `compound`, `tversky`). Toda loss força `float32` fora do autocast. No MONAI 1.5.2 o termo
   focal do `DiceFocalLoss` é sempre sigmoide, mesmo no caso multiclasse — considere isso antes de comparar campanhas

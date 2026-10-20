@@ -1,0 +1,72 @@
+{
+    "trainer": {
+        "path": "model_10",
+        "base": "model_5",
+        "loss": "dice_focal",
+        "scheduler": "plateau",
+        "epochs": 100,
+        "batch_size": 2,
+        "ema": true,
+        "trial": 0,
+        "val_iou": 0.7076720595359802,
+        "test_iou": 0.720224142074585,
+        "selftrain": {
+            "base": "model_5",
+            "pseudo": "iracema_pseudo",
+            "steps": 1000,
+            "lr": 0.0001,
+            "soft": false,
+            "dead": 0.25,
+            "seed": 42
+        }
+    },
+    "processing": {
+        "network": "macnn",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "scaling": "percentile",
+        "lr": 0.0001,
+        "loss": "dice_focal",
+        "batch_size": 2,
+        "scheduler": "plateau",
+        "dropout": 0.05,
+        "num_filters": 32,
+        "ema": true,
+        "n_trials": 1,
+        "trial": 0,
+        "selftrain": {
+            "pseudo": "iracema_pseudo",
+            "steps": 1000,
+            "lr": 0.0001,
+            "soft": false,
+            "dead": 0.25,
+            "seed": 42
+        }
+    },
+    "division": {
+        "val_size": 0.047619047619047616,
+        "test_size": 0.045454545454545456,
+        "n_images": {
+            "total": 220,
+            "train": 200,
+            "val": 10,
+            "test": 10
+        }
+    },
+    "model": {
+        "network": "macnn",
+        "img_size": [
+            128,
+            128,
+            128
+        ],
+        "classes": 1,
+        "channels": 1,
+        "dropout": 0.05,
+        "num_filters": 32,
+        "lr": 0.0001
+    },
+    "iou": {
+        "mean": 0.720224142074585
+    }
+}

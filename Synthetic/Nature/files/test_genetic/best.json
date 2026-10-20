@@ -1,0 +1,27 @@
+{
+  "model": "genetic",
+  "score": 8.000000000000368,
+  "best": {
+    "x": 1.9999995756834459,
+    "y": 2.000000424316556
+  },
+  "genome": [
+    1.9999995756834459,
+    2.000000424316556
+  ],
+  "names": [
+    "x",
+    "y"
+  ],
+  "stopped": 817,
+  "runs": 10,
+  "params": {
+    "population": 20,
+    "generations": 375,
+    "sigma": 6.0,
+    "patience": null,
+    "target": null,
+    "maxNfe": 7500
+  },
+  "updated": "2026-09-02T16:55:52"
+}
