@@ -1,0 +1,36 @@
+[
+  {
+    "run": 1,
+    "at": "2026-10-21T18:08:45",
+    "model": "genetic",
+    "score": -0.35712710628149585,
+    "improved": true,
+    "stopped": 11,
+    "best": {
+      "faultThrowPeriodCenter": 0.6252260785304594,
+      "faultThrowPeriodWidth": 0.835601773900094,
+      "faultVisible": 0.0037563796036689523,
+      "faultDragCenter": 0.0,
+      "faultDragWidth": 0.9031929803846418,
+      "faultCountCenter": 0.357344117649124,
+      "faultCountWidth": 0.7583911159245194
+    },
+    "params": {
+      "population": 8,
+      "generations": 12,
+      "sigma": 0.25,
+      "mean": [
+        0.34090909090909094,
+        0.8257726772039403,
+        0.37499999999999994,
+        0.4444444444444445,
+        0.9515449934959718,
+        0.35294117647058826,
+        0.5781296526357756
+      ],
+      "patience": null,
+      "target": null,
+      "maxNfe": 96
+    }
+  }
+]

@@ -1,7 +1,5 @@
-# VALIDAÇÃO DA SONDA (PORTÃO A): OS DATASETS QUE TÊM ÂNCORA DE RECEITA COMPLETA (74, wu, 74_wu, as misturas com o marlim_opt) MEDIDOS PELA
-# SONDA E PELA RECEITA COMPLETA, NAS MESMAS MÉTRICAS (STICKS NATIVO, STICKS IGUALADO, PIXEL SUAVE); ρ DE SPEARMAN ENTRE AS DUAS ORDENS.
-# uso: python proxy.py [sonda: Q20|P20|...]
-import sys, json
+# SONDA × RECEITA COMPLETA NOS DATASETS COM ÂNCORA: AS MESMAS MÉTRICAS E O ρ DE SPEARMAN ENTRE AS DUAS ORDENS. uso: python proxy.py [sonda]
+import os, sys, json
 import numpy as np, pandas as pd
 from scipy.stats import spearmanr
 
@@ -10,9 +8,17 @@ ANCHORS = {'anc_art2_wu': 'dataset_wu', 'anc_mar2_wu': 'dataset_wu', 'anc_art5_7
 METRICS = ['f1', 'f1@1', 'f1@2', 'f1_curva', 'auc_perto', 'ap_perto', 'pp@1', 'pf@1', 'pf@2', 'pf@4', 'mask_frac']
 
 
+# SÓ AS RODADAS MEDIDAS EM TODOS OS PATCHES PEDIDOS (PATCHES=1200,1300 NO AMBIENTE ESCOLHE OUTRO CONJUNTO)
+def complete(rows):
+    wanted = os.environ.get('PATCHES', '1200,1300,1400,2600').split(',')
+    rows   = rows[rows.patch.astype(str).isin(wanted)]
+    full   = rows.groupby('tag').patch.nunique()
+    return rows[rows.tag.isin(full[full == len(wanted)].index)]
+
+
 def table():
     rows   = pd.DataFrame([json.loads(l) for l in open(f'{EXP}/results.jsonl')])
-    rows   = rows[rows.metodo == 'rapido'][['tag', 'patch', 'dataset', 'f1', 'f1@1', 'f1@2', 'mask_frac']]
+    rows   = complete(rows[rows.metodo == 'rapido'])[['tag', 'patch', 'dataset', 'f1', 'f1@1', 'f1@2', 'mask_frac']]
     curve  = pd.read_csv(f'{EXP}/profile/f1curve.csv', dtype={'patch': str})[['tag', 'patch', 'f1_curva']]
     smooth = pd.read_csv(f'{EXP}/profile/smooth.csv', dtype={'patch': str})
     rows   = rows.merge(curve, on=['tag', 'patch'], how='left').merge(smooth, on=['tag', 'patch'], how='left')

@@ -1,0 +1,41 @@
+{
+    "base": "74",
+    "fracao": 0.039,
+    "vencedor": {
+        "faultThrowPeriod": [
+            0.1,
+            1.5813244202713588
+        ],
+        "faultVisible": 0.030948479051186313,
+        "faultDrag": [
+            0.4164019487753455,
+            0.8213943917592015
+        ],
+        "faultCount": [
+            3,
+            6
+        ]
+    },
+    "resumo": {
+        "objetivo": {
+            "refer\u00eancia": -2.5192,
+            "busca": -1.9519,
+            "m\u00e9dia da busca": -1.4062
+        },
+        "desvio": {
+            "refer\u00eancia": 0.6003,
+            "busca": 0.5131,
+            "m\u00e9dia da busca": 0.1568
+        },
+        "ganho": {
+            "refer\u00eancia": 0.0,
+            "busca": 0.5673,
+            "m\u00e9dia da busca": 1.1131
+        },
+        "erro": {
+            "refer\u00eancia": 0.0,
+            "busca": 0.241,
+            "m\u00e9dia da busca": 0.2568
+        }
+    }
+}

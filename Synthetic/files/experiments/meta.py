@@ -4,13 +4,21 @@
 # uso: python meta.py [sonda: Q20|P20] [métrica: f1|f1@1]
 #   E1 = profile/objective_e1.csv (régua × tiles reais, sem treino); trava = profile/visibility.csv (AUC do rótulo sintético)
 #   E2 = estatísticas SEM RÓTULO da predição da própria sonda no Marlim (máscara, fragmentos, horizontal, água, borda) e a bateria
-import sys, json
+import os, sys, json
 import numpy as np, pandas as pd
 from scipy.stats import spearmanr
 
 EXP     = '/home/grva-mint/Projects/Falhas/Synthetic/files/experiments'
 FREE    = ['mask_frac', 'water_frac', 'frag_curtos', 'horizontal', 'no_mergulho', 'paralelo_camada', 'borda_x0', 'fragmentos']
 TRAVA   = 0.75    # MEDIANA DA AUC DE VISIBILIDADE DO RÓTULO ABAIXO DISSO PERDE O QUE FALTA
+
+
+# SÓ AS RODADAS MEDIDAS EM TODOS OS PATCHES PEDIDOS (PATCHES=1200,1300 NO AMBIENTE ESCOLHE OUTRO CONJUNTO)
+def complete(rows):
+    wanted = os.environ.get('PATCHES', '1200,1300,1400,2600').split(',')
+    rows   = rows[rows.patch.astype(str).isin(wanted)]
+    full   = rows.groupby('tag').patch.nunique()
+    return rows[rows.tag.isin(full[full == len(wanted)].index)]
 
 
 def runs(probe):
@@ -22,7 +30,7 @@ def runs(probe):
 # TSTR POR DATASET: MÉDIA DOS PATCHES EM CADA RODADA, DEPOIS MÉDIA E DESVIO ENTRE AS RODADAS (SEMENTES)
 def tstr(probe, metric):
     rows = runs(probe)
-    rows = rows[rows.metodo == 'rapido']
+    rows = complete(rows[rows.metodo == 'rapido'])
     # AS MÉTRICAS DO f1curve.py (F1 COM A MÁSCARA IGUALADA EM 1–5% E A MÉDIA f1_curva) VÊM DO CSV, CALCULADAS DAS SEÇÕES SALVAS
     if metric not in rows or metric in ('f1@3', 'f1@4', 'f1@5', 'f1_curva'):
         source = 'smooth' if metric.startswith(('pp@', 'pr@', 'pf@', 'auc_', 'ap_')) else 'f1curve'

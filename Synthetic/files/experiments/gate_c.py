@@ -1,13 +1,21 @@
 # PORTÃO C: CADA ABLAÇÃO CONTRA O SEU CONTROLE NA MESMA SONDA (A*/B* CONTRA O A0, C1_* CONTRA O C0_v1, C0_v2 CONTRA O C0_v1),
 # MÉDIA DOS PATCHES DE DEV E DAS SEMENTES; Δ MARCADO COM * QUANDO PASSA DE 2σ DO RUÍDO DA PRÓPRIA SONDA (SEMENTE DE TREINO ⊕ AMOSTRA DO GERADOR).
 # uso: python gate_c.py [sonda: Q20|P20]
-import sys, json
+import os, sys, json
 import numpy as np, pandas as pd
 
 EXP     = '/home/grva-mint/Projects/Falhas/Synthetic/files/experiments'
 METRICS = ['f1', 'f1@1', 'recall', 'precisao', 'deteccao', 'mask_frac', 'perto_gt', 'cobertura', 'cob_z450-700', 'cob_z700-950', 'cob_z950-1200', 'frag_curtos', 'horizontal', 'water_frac', 'borda_x0']
 SMOOTH  = ['pf@1', 'pf@2', 'pp@1', 'auc_perto', 'ap_perto', 'top2_z700-950', 'top2_z>1200']
 CONTROL = {'C1_': 'C0_v1', 'C0_v2': 'C0_v1', 'C0_v1': 'A0_ctrl', 'A': 'A0_ctrl', 'B': 'A0_ctrl', 'dataset_74': 'A0_ctrl'}
+
+
+# SÓ AS RODADAS MEDIDAS EM TODOS OS PATCHES PEDIDOS (PATCHES=1200,1300 NO AMBIENTE ESCOLHE OUTRO CONJUNTO)
+def complete(rows):
+    wanted = os.environ.get('PATCHES', '1200,1300,1400,2600').split(',')
+    rows   = rows[rows.patch.astype(str).isin(wanted)]
+    full   = rows.groupby('tag').patch.nunique()
+    return rows[rows.tag.isin(full[full == len(wanted)].index)]
 
 
 def control(dataset):
@@ -18,7 +26,7 @@ def table(probe):
     rows = pd.DataFrame([json.loads(l) for l in open(f'{EXP}/results.jsonl')])
     rows = rows[rows.tag.str.startswith(probe + '_')]
     tags = rows[['tag', 'dataset']].dropna().drop_duplicates().set_index('tag').dataset
-    fast = rows[rows.metodo == 'rapido']
+    fast = complete(rows[rows.metodo == 'rapido'])
     # AS MEDIDAS SUAVES (smooth.py) E O F1 IGUALADO EM 1–5% (f1curve.py), CALCULADOS DAS SEÇÕES SALVAS
     for name, cols in (('smooth', SMOOTH), ('f1curve', ['f1_curva'])):
         extra_ = pd.read_csv(f'{EXP}/profile/{name}.csv', dtype={'patch': str})

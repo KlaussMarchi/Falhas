@@ -73,6 +73,54 @@ class E1Objective:
             return self.visibility.tile((f'{folder}/i.npy', f'{folder}/m.npy'))['vis']
 
 
+# PERFIL DAS FALHAS ROTULADAS CONTRA O DO BLOCO (profile/faults.py, MESMA RÉGUA), PONTO A PONTO (OS STICKS DO TILE SÃO CURTOS E
+# PERDEM OS PONTOS DA BORDA): QUANTIS DO LOG DO REJEITO/PERÍODO PESADOS PELOS PONTOS COM REJEITO, EM UNIDADES DO INTERQUARTIL DO
+# ALVO; FRAÇÃO DOS PONTOS COM REJEITO VISÍVEL (0,1 VALE 1); LOG DA FRAÇÃO ROTULADA CONTRA A META (UM FATOR 2 VALE 1)
+class FaultObjective:
+    QUANTILES = (0.1, 0.25, 0.5, 0.75, 0.9)
+    SECTIONS  = (32, 64, 96)
+
+    def __init__(self, target, labelFraction, nTiles=24, fast=True):
+        self.target        = target
+        self.labelFraction = labelFraction
+        self.nTiles        = nTiles
+        self.fast          = fast
+
+    def getScores(self, candidates, seed):
+        return [self.getScore(params, seed) for params in candidates]
+
+    def getScore(self, params, seed):
+        import marlim
+        from faults import measure
+        from offset import slope
+        tables, fractions = [], []
+        for k in range(self.nTiles):
+            image, mask = getTile(params, seed + k, self.fast)
+            fractions.append(float(mask.mean()))
+            for x in self.SECTIONS:
+                section = image[x] - np.median(image[x])
+                tables.append(measure(section, slope(section), marlim.NB['FaultStickExtractor'].fromRaster(mask[x] > 0)))
+        table = pd.concat(tables, ignore_index=True)
+        if table.acertos.sum() < 50:
+            return {'objetivo': -10.0, 'sticks': len(table), 'rotulo': float(np.mean(fractions))}
+        mine, goal = self.getHits(table), self.getHits(self.target)
+        razao      = self.getDistance(np.log(mine.razao.clip(lower=0.02)), np.log(goal.razao.clip(lower=0.02)))
+        visivel    = abs(self.getVisible(table) - self.getVisible(self.target)) / 0.1
+        rotulo     = abs(np.log(np.mean(fractions) / self.labelFraction)) / np.log(2)
+        return {'objetivo': -(razao + visivel + rotulo), 'd_razao': razao, 'd_visivel': visivel, 'd_rotulo': rotulo, 'razao': float(mine.razao.median()), 'visivel': self.getVisible(table), 'rotulo': float(np.mean(fractions)), 'sticks': len(table)}
+
+    def getHits(self, table):
+        table = table[table.acertos > 0]
+        return table.loc[table.index.repeat(table.acertos)]
+
+    def getVisible(self, table):
+        return float(table.acertos.sum() / table.pontos.sum())
+
+    def getDistance(self, values, target):
+        q, t = values.quantile(self.QUANTILES).to_numpy(), target.quantile(self.QUANTILES).to_numpy()
+        return float(np.mean(np.abs(q - t)) / (target.quantile(0.75) - target.quantile(0.25)))
+
+
 # OBJETIVO POR SONDA: CADA CANDIDATO VIRA UM DATASET PEQUENO GERADO NA PLACA, A SONDA (A Q20: dbrnet nf 16, 20 ÉPOCAS) TREINA NELE
 # PELO train.py E O measure DÁ A NOTA: 'tstr' = F1@1 MÉDIO NOS PATCHES DE DEV (USA A INTERPRETAÇÃO, SÓ O MARLIM TEM), 'injecao' =
 # RECALL DA FALHA INJETADA MENOS O PESO × A MARCAÇÃO DO TILE REAL SEM INJEÇÃO (SEM RÓTULO, PORTÁVEL), OU UMA FUNÇÃO (modelo, tag) ->

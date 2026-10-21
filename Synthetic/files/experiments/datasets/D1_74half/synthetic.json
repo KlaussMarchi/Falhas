@@ -1,0 +1,16 @@
+{
+    "directory": "original",
+    "seed": 20261021,
+    "regions": {
+        "tiles": {
+            "n_images": 220,
+            "output": "tiles",
+            "params": {
+                "faultCount": [
+                    2,
+                    6
+                ]
+            }
+        }
+    }
+}

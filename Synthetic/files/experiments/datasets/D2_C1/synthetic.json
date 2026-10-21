@@ -1,0 +1,49 @@
+{
+    "directory": "original",
+    "seed": 20261021,
+    "regions": {
+        "tiles": {
+            "n_images": 220,
+            "output": "tiles",
+            "params": {
+                "waveletLog": true,
+                "waveletFreq": [
+                    33,
+                    208
+                ],
+                "noiseLevel": [
+                    0.0,
+                    0.15
+                ],
+                "bodyCount": [
+                    0,
+                    3
+                ],
+                "seafloorProb": 0.15,
+                "deadZoneProb": 0.3,
+                "deadZoneHatch": [
+                    0.05,
+                    0.2
+                ],
+                "gainField": 0.4,
+                "waveletPhase": [
+                    -90.0,
+                    90.0
+                ],
+                "faultThrowPeriod": [
+                    0.2,
+                    1.5
+                ],
+                "faultVisible": 0.15,
+                "faultDrag": [
+                    0.0,
+                    0.8
+                ],
+                "faultCount": [
+                    2,
+                    6
+                ]
+            }
+        }
+    }
+}

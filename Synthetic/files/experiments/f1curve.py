@@ -1,7 +1,4 @@
-# F1 DE STICKS COM A MÁSCARA IGUALADA EM VÁRIAS FRAÇÕES DA SEÇÃO VIVA (1–5%), CALCULADO DEPOIS DAS SEÇÕES SALVAS (sections/<tag>_<pid>_fast.npy):
-# A SONDA CURTA MARCA ~10% E A RECEITA COMPLETA 2,6–5%, ENTÃO A COMPARAÇÃO JUSTA É NO MESMO PONTO DE OPERAÇÃO; A MÉDIA DAS FRAÇÕES (f1_curva)
-# TIRA O ACASO DE UMA FRAÇÃO SÓ. MESMO EXTRATOR E MESMO COMPARADOR DO NOTEBOOK.
-# uso: python f1curve.py   -> profile/f1curve.csv (uma linha por tag × patch)
+# F1 DE STICKS COM A MÁSCARA IGUALADA EM 1–5% DA SEÇÃO VIVA E A MÉDIA f1_curva, DAS SEÇÕES SALVAS -> profile/f1curve.csv
 import os, sys, glob, re
 import numpy as np, pandas as pd
 from multiprocessing import get_context

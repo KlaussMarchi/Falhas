@@ -5,19 +5,19 @@ numa sessão nova, ler daqui para baixo antes de agir. Os números de máquina f
 
 ## Estado atual (atualizar a cada experimento)
 
-- **Fase:** A (harness OK; ruído e validação da sonda esperando as Q20) e C (Q20 rodando desde 01:26, 2 filas); B e D
-  feitas; E com a infraestrutura pronta (`calibration.py`: `Calibration`, `ProbeObjective`, `getRegions`; `meta.py` com
-  E1/trava/E2/E2+/E3/bateria) esperando a M2.
-- **GPU:** a `nra_sanet` do usuário terminou em 21/10 00:29 (100 épocas, `Model/Backup/model_7`, val_iou 0,802). A fila
-  `gpuqueue.py a 3633873` (PID 159843, `logs/gpuqueue_a.log`, 70 jobs em `queue.json`) entrou na placa às 00:30 com o
-  `verify_harness`; só pausa quando um processo alheio com > 2 GB usa SM ≥ 10% numa janela de 5 s. O `scaleup.py`
-  (PID 133131) abriu a fila b às 01:02 (PID 522198, `logs/gpuqueue_b.log`) e tenta a c a cada 15 min (uso < 80%, ≥ 8 GB). Ordem:
-  verificação do harness → 7 âncoras (rápido) → Q20 (74, wu, A0×2, C0_v1, C0_v2, A1, 74_wu, mopt, regions, misturas ×2, A0_t2, A2–A5, B1–B7, B1L, C1×9, C0×2) → P20 →
-  âncoras pelo método do notebook; a `train_FULL_74wu_ema_t0` só na fila c.
-- **CPU:** geração terminada (25 datasets de ablação + `dataset_regions_n`, `dataset_74_p`, `dataset_wu_p`, misturas `mix_74_mar`/`mix_wu_mar`); o vigia do perfil saiu (`fim`).
-  Perfis, visibilidade e E1 de todos em `profile/` (`objective_e1.csv`, `visibility.csv`).
-- **Ao retomar:** `python status.py`; `python summary.py` (resultados); `queue_done/`, `queue_running/` (job morto no
-  meio: apagar o marcador); `logs/<job>.log`. Objetivos E1: `cd profile && python objective.py`.
+- **Fase (21/10 16:10):** decisões só na receita completa (as sondas Q20/L40 não ordenam como ela). Avaliação nos 4 patches
+  anotados (pedido do usuário: todos viram material de calibração; o número honesto sai do leave-one-patch-out, `lopo.py`).
+  Meta de calibração medida: marcação nativa de 1,0–1,5% da seção viva (curva fina do F1, seção "Âncoras nos 4 patches").
+- **GPU:** fila b treina o `FULL_C1sd_t0` (época ~45/100, fim ~22h); a fila a avalia as sondas no 1400/2600 e pausa
+  enquanto um processo meu de geração usa a placa. Na fila, depois do FULL_C1sd: `eval_teste_FULL_C1sd_t0` (liberado
+  sozinho pelo `release.py` do scratchpad quando o treino acabar) e `train_FULL_D1_t0` (em espera até o dataset sair). As Q20
+  restantes e as P20 seguem em espera.
+- **CMA-ES do perfil de falhas:** `fault_ga.py 74 0.039` (PID 1043367, `logs/fault_ga_74.log`, memória
+  `Synthetic/files/memory/falhas_74_*`); a primeira tentativa (`..._v1_visivel_por_stick`) usava a visibilidade por stick,
+  inflada pelos sticks curtos do tile, e foi interrompida.
+- **Geração:** `D1_74half` (padrões + `faultCount (2, 6)`) em `datasets/`, `logs/gen_D1_74half.log`.
+- **Ao retomar:** `python status.py`; `python full.py <tags>` (resumo das rodadas completas); `python lopo.py <tags>`;
+  `queue_done/`, `queue_running/` (job morto no meio: apagar o marcador); `logs/<job>.log`.
 
 ---
 
@@ -815,3 +815,158 @@ saturação vira parâmetro medido (M4) pelo `sat` do bloco.
   `C2_m4` = C0_v1 com a densidade padrão (como o C1_stdDensity) e o **período por faixa do Marlim** (`getRegions`: z250 63
   tiles f 130–297 · z500 56 f 44–172 · z750 64 f 34–50 · z1000 37 f 25–47) no lugar do log 33–208; `C2_m4_v2` = o mesmo
   com as lentes e os corpos com camadas do C0_v2. Semente 20261021.
+
+### L40 do par-chave C0_v1 × A0 (21/10 11:21)
+
+| dev | F1 sticks | máscara | f1@1 | f1_curva | pp@1 | pf@1 | pf@2 | AUC | top2 700–950 / >1200 |
+|---|---|---|---|---|---|---|---|---|---|
+| L40 A0 | 0,210 | **10,8%** | 0,160 | 0,235 | 0,141 | 0,231 | 0,214 | 0,620 | 0,27 / 0,24 |
+| L40 C0_v1 | 0,234 | **1,1%** | 0,246 | 0,282 | 0,156 | 0,237 | 0,222 | 0,609 | 0,31 / 0,23 |
+| L40 74 (mesma config do A0) | 0,290 | 4,7% | 0,261 | 0,287 | 0,145 | 0,240 | 0,224 | 0,623 | 0,26 / 0,21 |
+| completa 74 (mar1) | 0,289 | 2,6% | 0,399 | 0,320 | 0,254 | 0,371 | 0,355 | 0,700 | 0,45 / 0,09 |
+
+- **Com 2× mais passos, a vantagem do C0_v1 no ranking quase some**: pf@1 0,237 × 0,231 (Q20: 0,245 × 0,184); o A0
+  sobe muito (0,184 → 0,231) e o C0_v1 não (0,245 → 0,237). Sobra +0,047 no f1_curva, +0,015 no pp@1 e +0,04 da confiança
+  no intervalo falhado; a fração abaixo de 1200 fica igual (0,23). O efeito da coluna na Q20 era, em boa parte, aprendizado
+  mais rápido — o treino longo do A0 chega lá sozinho.
+- A calibração do limiar varia muito entre sementes/amostras na L40: A0 marca 10,8% e o 74 (mesma configuração) 4,7%.
+- As sondas curtas (Q20 900 passos, L40 4 000) não chegam perto da receita completa (10 000 passos, pf@1 0,37) e a ordem
+  entre datasets muda com o comprimento do treino. **Conclusão do Portão A: nenhuma sonda barata ordena como a receita
+  completa de forma confiável; o roteiro manda orçar a receita completa** para as decisões, e as sondas ficam só para
+  efeitos grandes e para a triagem do que vale levar à receita completa.
+- 11:20: `FULL_C1sd_t0` começou sozinho na placa (17,5 GB — não cabe nada ao lado; ~8 h, até ~19:30). A fila b saiu
+  ("fila vazia", como previsto).
+
+## 21/10/2026 (tarde) — instrução do usuário: os 4 patches
+
+**Usuário (21/10 ~13:50):** usar **todos os patches anotados** (1200, 1300, 1400, 2600) como material para calibrar o
+bloco e maximizar o F1, "ir ajustando até ficar perfeito"; a anotação tem só as falhas gerais; o objetivo é achar o perfil
+de falha do Marlim com um sintético compatível; código organizado, limpo, com poucos comentários, no estilo da `Model/`.
+
+- **Protocolo novo:** toda medida e toda decisão usam os 4 patches (antes: dev 1200/1300, teste guardado). O teste
+  guardado da M8 deixa de existir; para o número final não ficar otimista sem aviso, a escolha final entre candidatos é
+  feita também em "deixa um patch fora" (escolhe em 3, mede no 4º, girando), o que não custa placa.
+- 13:57: 21 reavaliações em 1400/2600 de todos os modelos prontos (7 âncoras, 10 Q20, 4 L40; `eval_teste_<tag>`, só a
+  seção: `'medidas': False` no `job.py` pula a bateria e a injeção, que são do modelo) na fila a (relançada, PID 973418),
+  ao lado do FULL (que roda na fila b). A do FULL_C1sd fica em `hold` até o treino acabar. Todo treino pendente avalia nos
+  4 patches. As caches `slab_1400/2600` saem na primeira reavaliação.
+- O usuário commitou às 10:53 (`3922057`, "melhoria adicionado imagens dos treinos e json"): entraram o
+  `Synthetic/index.py` estendido, o `1 - Profile.ipynb`, o conserto do `Nature`, o `model/info.json` e a pasta
+  `experiments/` inteira (scripts, logs, `queue.json`, marcadores). **A base das provas bit a bit do gerador passa a ser
+  `8413d0f:Synthetic/index.py`** (o HEAD já tem as etapas novas). Como a `experiments/` agora é versionada, o código dela
+  segue o estilo pedido (limpo, poucos comentários, como a `Model/`).
+
+### Perfil das falhas do Marlim nos 4 patches (`profile/faults.py` → `profile/faults_<nome>.pkl`; 21/10 14:10)
+
+Sticks do especialista (`fromRaster` da anotação, 105 nos 4 patches) e dos rótulos sintéticos (60 tiles × 3 seções inline,
+`fromRaster` da máscara), medidos do mesmo jeito; rejeito = |deslocamento| mediano onde a correlação dos traços dos dois
+lados é boa (`offset.evidence`), período local pelo centróide.
+
+| mediana (p10–p90) | especialista | dataset_74 | C0_v1 | C1_subtle | C0_v2 |
+|---|---|---|---|---|---|
+| mergulho aparente (°) | 65 (53–76) | 61 (36–76) | 60 (32–74) | 63 (33–76) | 61 (38–75) |
+| comprimento (px) | 274 (69–567) | 78 (tile 128) | 87 | 88 | 93 |
+| rejeito (px) | 4 (1–7,6) | 8 (1,5–13) | 7 (2–14) | 2 (1–6) | 7,8 |
+| período no local (px) | 13,5 (4,3–20) | 9,2 (8–11) | 11,8 (6,9–20) | 8,7 (5,8–18) | 12,5 (6,3–26) |
+| **rejeito / período** | **0,27 (0,15–0,61)** | 0,90 (0,17–1,42) | 0,52 (0,14–1,41) | **0,19 (0,11–0,66)** | 0,52 |
+| espaçamento (px) | 170 (31–481) | 32 | 51 | 39 | 36 |
+| densidade (px de stick / px²) | 0,0028 (0,0019–0,0048 por patch) | 0,0176 | 0,0083 | 0,0079 | 0,0102 |
+
+- Por faixa (especialista): z < 450 período 4,2, sticks curtos (69 px); 450–700 período 6,9, razão 0,37; 700–950 período
+  17, razão 0,29 (43 dos 105 sticks); 950–1200 mergulho 75°, razão 0,23; > 1200 sticks de 630 px na zona fraca.
+- **O 74 tem 3× o rejeito relativo do Marlim e 6× a densidade da anotação.** O C1_subtle (rejeito 0,2–1,5 período) chega
+  perto na razão; nenhum sintético chega perto do espaçamento (o tile tem 128 px; a anotação põe ~0,75 falha por janela de
+  128 px). Como a anotação traz só as falhas gerais (longas, espaçadas), "imitar o geólogo" puxa para rotular só as
+  principais (H8b) — o critério do especialista é extensão/continuidade, não rejeito (ele anota rejeitos de 1–7 px).
+- O mergulho aparente do sintético desce a 32–38° no p10 (direção sorteada em 0–2π); no Marlim o p10 é 53°. Numa rede 3D
+  isso pesa pouco (ela vê o plano), mas é o H3 do roteiro.
+
+### Âncoras nos 4 patches e o ponto de operação (21/10 15:15–16:00)
+
+As 7 âncoras (receita completa) reavaliadas no 1400/2600 (`eval_teste_*`, `medidas: False`); médias dos 4 patches pelo
+método rápido (o model_5 dá 0,292 aqui contra 0,300 pelo notebook):
+
+| âncora (dataset) | F1 nativo | marca (0,5) | F1@1% | P@1 | R@1 | rótulo do dataset |
+|---|---|---|---|---|---|---|
+| art5 (74_wu) | 0,292 | 3,9% | **0,403** | 0,46 | 0,37 | 6,9% |
+| mar1 (74) | **0,304** | 2,6% | 0,367 | 0,38 | 0,37 | 6,9% |
+| mar3 (74_wu 440) | 0,271 | 3,6% | 0,359 | 0,44 | 0,31 | 6,9% |
+| mar5 (74 + marlim_opt) | 0,302 | 1,2% | 0,318 | 0,33 | 0,34 | 5,3% |
+| mar2 (wu) | 0,271 | 3,5% | 0,274 | 0,43 | 0,21 | 6,8% |
+| art2 (wu) | 0,275 | 4,9% | 0,215 | 0,50 | 0,14 | 6,8% |
+| mar6 (wu + marlim_opt) | 0,259 | 1,6% | 0,264 | 0,29 | 0,27 | 5,0% |
+
+- **Curva fina do F1 contra a fração marcada** (igualada, 4 patches): art5 0,4% 0,20 · 0,6% 0,30 · 0,8% 0,38 · **1% 0,40**
+  · 1,25% 0,37 · 1,5% 0,35 · 2% 0,34 · 3,9% (nativo) 0,29; mar1 tem o platô 0,8–1,25% em 0,365. **O ótimo é ~1% da seção
+  viva, e marcar de menos custa mais que marcar de mais**: a meta de calibração é 1,0–1,5%.
+- O model_5 tem a ordenação para passar da meta (0,40 em 1%); o que o derruba é marcar 3,9% no limiar 0,5: 87 sticks por
+  patch contra 26 anotadas (1%: 27 sticks). A figura (scratchpad `fp_art5.png`, `fp_zoom_1200.png`) mostra o mecanismo: a
+  máscara nativa é feita de fragmentos curtos espalhados pela zona deformada (z 700–1000), e o extrator (`STICK_GAP 59`)
+  costura os fragmentos em sticks longos que cruzam as falhas do especialista. Excesso = 2,5× o esqueleto e 1,5× a
+  espessura da máscara de 1%.
+- Marca/rótulo na receita completa: 74 0,38, 74_wu 0,52–0,57, wu 0,51–0,72, misturas com marlim_opt 0,23–0,32. Na L40 o
+  A0 (mesma configuração do 74, outra semente) marcou 10,8% contra 4,7% do 74: a marcação varia muito de rodada a rodada.
+- Objetivo de imagem sem rótulo (E1) contra o F1@1 completo nas 5 âncoras de dataset distinto: ρ de −0,7 a +0,1 em todos os
+  termos (as misturas com marlim_opt cobrem melhor o perfil e ordenam pior). **Casar só a imagem não prediz o F1** (5
+  pontos; evidência fraca, mas na direção errada).
+- **O perfil das falhas é mensurável sem rótulo.** Os sticks da máscara de 1% do model_5 (`faults.py modelo:anc_art5_74wu`)
+  dão mergulho 65° (54–74), rejeito/período 0,31 (0,17–0,78), visível 0,43, espaçamento 292 px, densidade 0,0021; o
+  especialista: 65° (53–76), 0,27 (0,15–0,61), 0,41, 170 px, 0,0028. Isso torna o perfil de falha portável (o Iracema não tem
+  anotação): mede-se nos sticks confiáveis de um modelo de base.
+
+### Plano a partir daqui (21/10 16:00)
+
+1. **Calibração pela densidade (D1):** base do 74 (padrões) com `faultCount (2, 6)` → rótulo 3,9% (o padrão dá ~7,5–8%),
+   para a marcação nativa cair de ~2,6% para ~1,3%. Isola a alavanca de calibração sobre a base que melhor ordena.
+   `train_FULL_D1_t0` na fila logo depois do FULL_C1sd (em espera até o dataset sair).
+2. **CMA-ES do perfil de falhas (`fault_ga.py`, objetivo `FaultObjective` em `calibration.py`):** genoma
+   `faultThrowPeriod`, `faultVisible`, `faultDrag`, `faultCount`; alvo = perfil sem rótulo do model_5 (quantis do
+   rejeito/período e da visibilidade, em unidades do interquartil) + fração rotulada na meta. Barato (12 tiles por
+   candidato, ~20 s). Teste antes da busca (12 tiles): A0/74 razão 0,69, visível 0,53, rótulo 7,9%; C1_subtle 0,25/0,50/2,3%;
+   alvo 0,31/0,43.
+3. O FULL_C1sd (C0 com densidade padrão) diz às ~22h se a imagem da família C melhora a ordenação (F1@1) sobre o 74.
+4. Depois: o vencedor do CMA-ES na base vencedora, na receita completa, com a densidade calibrada; escolha final por
+   leave-one-patch-out (escolhe nos 3 patches, mede no 4º) para o número final não ser otimista.
+
+### CMA-ES do perfil de falhas: o objetivo (21/10 16:00–16:40)
+
+- `FaultObjective` (`calibration.py`): por candidato, 24 tiles (`fast`) × 3 seções inline; sticks do rótulo
+  (`fromRaster`), medidos pela régua do `faults.py` (`offset.evidence`). Distância ao alvo = quantis (10/25/50/75/90) do log
+  do rejeito/período em unidades do interquartil do alvo + |visível − alvo|/0,1 + |log(rótulo/meta)|/log 2.
+- **Ponderação ponto a ponto.** A 1ª versão comparava medianas por stick: os sticks do tile são curtos (78 px contra 274) e
+  perdem os pontos da borda (a janela da correlação precisa de 34 amostras acima e abaixo e 16 traços de lado), o que
+  infla a visibilidade por stick (0,55–0,70 contra 0,45). Somando os pontos (`acertos`/`pontos`, colunas novas do
+  `faults.measure`), a visibilidade do 74 é 0,46 e a do alvo 0,45 (especialista 0,42): **a visibilidade já casa; o que
+  separa o sintético do Marlim é o rejeito/período** (74: 0,84–0,91 nos pontos com rejeito; alvo 0,31, especialista 0,28).
+  Duas campanhas interrompidas e arquivadas em `memory/falhas_74_*_v1_*`, `_v2_*`.
+- Alvo = perfil sem rótulo do model_5 (`faults_modelo_anc_art5_74wu.pkl`); o do especialista dá quase o mesmo, então o
+  passo funciona sem anotação.
+- Encadeado (`scratchpad/chain_d2.sh`): `fault_ga.py 74 0.039` → `make_spec.py D2_74` → dataset → `fault_ga.py C1 0.035` →
+  `D2_C1`. Fila: `FULL_D2_74` (liberado sozinho quando o dataset sair) → `FULL_D2_C1` → `FULL_D1` → `FULL_74wu_ema`
+  (controle do ema: o model_5 é `ema: false` e a minha receita completa é `ema: true`).
+
+### Vencedor do CMA-ES na base do 74 e por que o D2_74 ficou em espera (21/10 17:00–17:30)
+
+- `fault_ga.py 74 0.039` (memória `falhas_74_dcb967a9`): 12 gerações × 8, 24 tiles por candidato. Escolha em 4 sementes
+  novas: referência −2,52 ± 0,60, melhor da busca −1,95, **média da busca −1,41 ± 0,16 (ganho 1,11 ± 0,26 → vencedora)**:
+  `faultThrowPeriod (0,10, 1,58)`, `faultVisible 0,03`, `faultDrag (0,42, 0,82)`, `faultCount (3, 6)`. Em 48 tiles: razão
+  mediana 0,215 (alvo 0,31; 74 0,90), visível 0,49 (alvo 0,45), rótulo 3,9%. Dataset `D2_74` gerado (220 tiles, 3,84%).
+- **Mas as falhas do D2_74 são quase invisíveis** (`scratchpad/figs/d2_74_zoom.png`): o rejeito de ~2 px no período de ~9 px
+  da base do 74, com o ruído dela, não deixa marca; no Marlim a mesma razão vem num período de ~17 px, num dado liso, e a
+  falha aparece como lineamento escuro cortando os refletores. A razão é livre de escala; a visibilidade para a rede não é.
+- **Escurecimento ao longo da falha** (envelope de Hilbert suavizado, relativo ao de ±40 px, mediana sobre os pontos dos
+  sticks): Marlim 0,86 / 0,89 / 0,92 / 0,93 / 0,95 / 0,98 em 0/3/6/10/15/25 px; família C (C1_stdDensity) 0,85 / 0,92 /
+  0,94 / 0,96 / 0,97 / 0,99; dataset_74 0,90 / 0,98 / 1,01 / 1,00; D1 0,93 / 0,97 / 1,00; D2_74 0,93 / 0,96 / 0,98 / 0,99.
+  **A família C reproduz o perfil de escurecimento do Marlim; o 74 só tem a quebra estreita do rejeito grande.**
+- Decisão: `FULL_D1` entra depois do FULL_C1sd (calibração pura, aposta segura); `FULL_D2_74` em espera; o `D2_C1` (CMA-ES
+  na base da família C, encadeado) substitui o D1 se o FULL_C1sd confirmar a família C.
+
+### CMA-ES na base da família C (21/10 17:16–18:14)
+
+- `fault_ga.py C1 0.035` (memória `falhas_C1_97999371`): a base C casa melhor o perfil do Marlim (melhor por geração −0,36 a
+  −1,35 contra −1,08 a −1,64 na base do 74), mas a busca não converge: o objetivo de 24 tiles tem desvio de 0,28–0,38 entre
+  sementes, do tamanho das diferenças entre candidatos. Escolha em 4 sementes novas: referência −1,12 ± 0,38, melhor da
+  busca −0,87 (ganho 0,25 ± 0,26, dentro do erro), média −1,20 → **fica a referência**: `faultThrowPeriod (0,2, 1,5)`,
+  `faultVisible 0,15`, `faultDrag (0, 0,8)`, `faultCount (2, 6)` (as falhas do C1_subtle com a densidade (2, 6)).
+- Para a próxima rodada da busca: mais tiles por candidato (48) ou o termo de visibilidade com peso menor; o ruído do
+  objetivo é o limite, não o orçamento de gerações.

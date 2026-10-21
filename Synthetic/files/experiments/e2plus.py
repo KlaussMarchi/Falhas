@@ -1,7 +1,4 @@
-# E2+: ESTATÍSTICAS SEM RÓTULO DOS STICKS QUE A REDE TRAÇA NA SEÇÃO REAL, CALCULADAS DEPOIS, DAS SEÇÕES SALVAS (sections/<tag>_<pid>_fast.npy):
-# A MÁSCARA IGUALADA EM 1% DA SEÇÃO VIVA VIRA STICKS PELO FaultStickExtractor DO NOTEBOOK (SEM A INTERPRETAÇÃO) E MEDE-SE QUANTO DESSA MASSA
-# SE ORGANIZA EM PLANOS LONGOS: COMPRIMENTO TOTAL, Nº, MEDIANA, FRAÇÃO DA MÁSCARA A ≤ 3 px DE UM STICK (RENDIMENTO) E MERGULHO DOS STICKS.
-# uso: python e2plus.py   -> profile/e2plus.csv (uma linha por tag × patch; o meta.py junta por dataset)
+# STICKS SEM RÓTULO DA MÁSCARA IGUALADA EM 1% (Nº, COMPRIMENTO, RENDIMENTO, MERGULHO), DAS SEÇÕES SALVAS -> profile/e2plus.csv
 import os, sys, glob, re
 import numpy as np, pandas as pd
 import scipy.ndimage as ndi

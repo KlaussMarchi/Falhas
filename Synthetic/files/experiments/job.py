@@ -15,8 +15,8 @@ def evaluate(model, tag, spec, extra):
     for fast in spec.get('methods', [True]):
         marlim.run(model, spec.get('patches', ['1200', '1300']), tag, fast=fast, results=f'{EXP}/results.jsonl', save=f'{EXP}/sections', extra={**extra, 'git': git()})
 
-    # A BATERIA DE SÓSIAS (battery.py) VAI JUNTO DA AVALIAÇÃO RÁPIDA: QUANTO O MODELO MARCA ONDE NÃO HÁ FALHA, POR TIPO DE SÓSIA
-    if True in spec.get('methods', [True]):
+    # A BATERIA E A INJEÇÃO SÃO DO MODELO, NÃO DO PATCH: 'medidas': False NA REAVALIAÇÃO EM PATCHES NOVOS
+    if True in spec.get('methods', [True]) and spec.get('medidas', True):
         import battery, injection
         battery.run(model, tag)
         injection.run(model, tag)

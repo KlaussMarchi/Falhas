@@ -1,0 +1,41 @@
+{
+    "base": "C1",
+    "fracao": 0.035,
+    "vencedor": {
+        "faultThrowPeriod": [
+            0.2,
+            1.5
+        ],
+        "faultVisible": 0.15,
+        "faultDrag": [
+            0.0,
+            0.8
+        ],
+        "faultCount": [
+            2,
+            6
+        ]
+    },
+    "resumo": {
+        "objetivo": {
+            "refer\u00eancia": -1.1197,
+            "busca": -0.8669,
+            "m\u00e9dia da busca": -1.197
+        },
+        "desvio": {
+            "refer\u00eancia": 0.3802,
+            "busca": 0.3674,
+            "m\u00e9dia da busca": 0.281
+        },
+        "ganho": {
+            "refer\u00eancia": 0.0,
+            "busca": 0.2528,
+            "m\u00e9dia da busca": -0.0774
+        },
+        "erro": {
+            "refer\u00eancia": 0.0,
+            "busca": 0.2643,
+            "m\u00e9dia da busca": 0.0497
+        }
+    }
+}

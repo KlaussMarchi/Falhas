@@ -1,0 +1,25 @@
+{
+    "directory": "original",
+    "seed": 20261021,
+    "regions": {
+        "tiles": {
+            "n_images": 220,
+            "output": "tiles",
+            "params": {
+                "faultThrowPeriod": [
+                    0.1,
+                    1.5813244202713588
+                ],
+                "faultVisible": 0.030948479051186313,
+                "faultDrag": [
+                    0.4164019487753455,
+                    0.8213943917592015
+                ],
+                "faultCount": [
+                    3,
+                    6
+                ]
+            }
+        }
+    }
+}

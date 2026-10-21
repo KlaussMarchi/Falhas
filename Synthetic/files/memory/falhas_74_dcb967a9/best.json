@@ -1,0 +1,51 @@
+{
+  "model": "genetic",
+  "score": -1.0775300502857084,
+  "best": {
+    "faultThrowPeriodCenter": 0.1706767048081056,
+    "faultThrowPeriodWidth": 1.0,
+    "faultVisible": 0.3363676294827994,
+    "faultDragCenter": 0.33736248890366766,
+    "faultDragWidth": 0.8635116058739144,
+    "faultCountCenter": 0.4860184728589254,
+    "faultCountWidth": 0.6694906687267952
+  },
+  "genome": [
+    0.1706767048081056,
+    1.0,
+    0.3363676294827994,
+    0.33736248890366766,
+    0.8635116058739144,
+    0.4860184728589254,
+    0.6694906687267952
+  ],
+  "names": [
+    "faultThrowPeriodCenter",
+    "faultThrowPeriodWidth",
+    "faultVisible",
+    "faultDragCenter",
+    "faultDragWidth",
+    "faultCountCenter",
+    "faultCountWidth"
+  ],
+  "stopped": 11,
+  "runs": 1,
+  "params": {
+    "population": 8,
+    "generations": 12,
+    "sigma": 0.25,
+    "mean": [
+      0.34090909090909094,
+      0.8257726772039403,
+      0.37499999999999994,
+      0.4444444444444445,
+      0.9515449934959718,
+      0.35294117647058826,
+      0.5781296526357756
+    ],
+    "patience": null,
+    "target": null,
+    "maxNfe": 96
+  },
+  "updated": "2026-10-21T16:55:44"
+}

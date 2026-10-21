@@ -1,0 +1,3 @@
+{"id": "eval_teste_anc_mar6_wumar", "kind": "eval", "model": "/home/grva-mint/Projects/Falhas/Documents/Backups/Marcia/model_6", "tag": "anc_mar6_wumar", "patches": ["1400", "2600"], "methods": [true], "medidas": false, "extra": {"dataset": "dataset_wu_mar", "scaling": "percentile", "receita": "completa"}, "need_mb": 3800}
+{"tag": "anc_mar6_wumar", "patch": "1400", "metodo": "rapido", "f1": 0.201, "recall": 0.349, "precisao": 0.142, "mask_frac": 0.0157, "f1@1": 0.162, "seg": 298}
+{"tag": "anc_mar6_wumar", "patch": "2600", "metodo": "rapido", "f1": 0.401, "recall": 0.467, "precisao": 0.351, "mask_frac": 0.0193, "f1@1": 0.432, "seg": 297}
