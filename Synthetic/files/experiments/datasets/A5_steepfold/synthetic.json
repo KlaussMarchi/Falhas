@@ -1,0 +1,20 @@
+{
+    "directory": "original",
+    "seed": 20261020,
+    "regions": {
+        "tiles": {
+            "n_images": 220,
+            "output": "tiles",
+            "params": {
+                "foldSigma": [
+                    6,
+                    30
+                ],
+                "foldAmplitude": [
+                    -40,
+                    40
+                ]
+            }
+        }
+    }
+}

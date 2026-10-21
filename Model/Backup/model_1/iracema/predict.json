@@ -1,0 +1,18 @@
+{
+    "model": "model_1",
+    "block": "iracema",
+    "inline": 1375,
+    "tiles": 896,
+    "tile_shape": [
+        128,
+        128,
+        128
+    ],
+    "img_size": [
+        128,
+        128,
+        128
+    ],
+    "overlap": 0.25,
+    "windows_per_tile": 1
+}

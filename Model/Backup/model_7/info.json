@@ -1,0 +1,71 @@
+{
+    "trainer": {
+        "path": "model_7",
+        "loss": "dice_focal",
+        "scheduler": "plateau",
+        "epochs": 100,
+        "batch_size": 2,
+        "ema": true,
+        "trial": 0,
+        "val_iou": 0.802631139755249,
+        "test_iou": 0.7422217726707458
+    },
+    "processing": {
+        "network": "nra_sanet",
+        "dataset": "dataset_74_wu",
+        "img_size": null,
+        "scaling": "normalize",
+        "lr": 0.001,
+        "loss": "dice_focal",
+        "batch_size": 2,
+        "scheduler": "plateau",
+        "dropout": 0.1,
+        "num_filters": 16,
+        "ema": true,
+        "epochs": 100,
+        "n_trials": 1,
+        "trial": 0
+    },
+    "division": {
+        "val_size": 0.047619047619047616,
+        "test_size": 0.045454545454545456,
+        "n_images": {
+            "total": 330,
+            "train": 300,
+            "val": 15,
+            "test": 15
+        }
+    },
+    "model": {
+        "network": "nra_sanet",
+        "img_size": [
+            128,
+            128,
+            128
+        ],
+        "classes": 1,
+        "channels": 1,
+        "dropout": 0.1,
+        "num_filters": 16,
+        "lr": 0.001
+    },
+    "iou": {
+        "mean": 0.7422217726707458
+    },
+    "test": {
+        "dataset_74": {
+            "tiles": 7,
+            "scaling": "normalize",
+            "accuracy": 0.9735226631164551,
+            "precision": 0.8437615716930673,
+            "recall": 0.826655783053307,
+            "iou": 0.7169166566525011,
+            "f1": 0.8351210920747716,
+            "tp": 984366,
+            "fp": 182274,
+            "fn": 206415,
+            "tn": 13307009,
+            "timestamp": "21/10/26 09:21:47"
+        }
+    }
+}

@@ -1,0 +1,34 @@
+{
+    "directory": "original",
+    "seed": 20261020,
+    "regions": {
+        "tiles": {
+            "n_images": 220,
+            "output": "tiles",
+            "params": {
+                "waveletLog": true,
+                "waveletFreq": [
+                    33,
+                    208
+                ],
+                "noiseLevel": [
+                    0.0,
+                    0.15
+                ],
+                "faultCount": [
+                    1,
+                    5
+                ],
+                "bodyCount": [
+                    0,
+                    3
+                ],
+                "gainField": 0.4,
+                "waveletPhase": [
+                    -90.0,
+                    90.0
+                ]
+            }
+        }
+    }
+}

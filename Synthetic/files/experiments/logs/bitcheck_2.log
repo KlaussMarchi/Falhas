@@ -1,0 +1,11 @@
+padrao             semente     7: máscara igual True, |Δimagem| máx 0.00e+00, rng igual True, rótulo 0.0711, 43s/44s
+padrao             semente  2026: máscara igual True, |Δimagem| máx 0.00e+00, rng igual True, rótulo 0.0874, 41s/36s
+dataset_74.json    semente     7: máscara igual True, |Δimagem| máx 0.00e+00, rng igual True, rótulo 0.0711, 35s/35s
+dataset_74.json    semente  2026: máscara igual True, |Δimagem| máx 0.00e+00, rng igual True, rótulo 0.0874, 35s/36s
+sem_falha          semente     7: máscara igual True, |Δimagem| máx 0.00e+00, rng igual True, rótulo 0.0000, 5s/5s
+sem_falha          semente  2026: máscara igual True, |Δimagem| máx 0.00e+00, rng igual True, rótulo 0.0000, 5s/5s
+estresse_listrica  semente     7: máscara igual True, |Δimagem| máx 0.00e+00, rng igual True, rótulo 0.0979, 59s/61s
+estresse_listrica  semente  2026: máscara igual True, |Δimagem| máx 0.00e+00, rng igual True, rótulo 0.1353, 74s/74s
+fast               semente     7: máscara igual True, |Δimagem| máx 0.00e+00, rng igual True, rótulo 0.0880, 34s/33s
+fast               semente  2026: máscara igual True, |Δimagem| máx 0.00e+00, rng igual True, rótulo 0.0800, 32s/32s
+TUDO IGUAL

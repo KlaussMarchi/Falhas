@@ -1,0 +1,35 @@
+{
+    "directory": "original",
+    "seed": 20261020,
+    "regions": {
+        "tiles": {
+            "n_images": 220,
+            "output": "tiles",
+            "params": {
+                "noiseLevel": [
+                    0.0,
+                    0.15
+                ],
+                "faultCount": [
+                    1,
+                    5
+                ],
+                "bodyCount": [
+                    0,
+                    3
+                ],
+                "seafloorProb": 0.15,
+                "deadZoneProb": 0.3,
+                "deadZoneHatch": [
+                    0.05,
+                    0.2
+                ],
+                "gainField": 0.4,
+                "waveletPhase": [
+                    -90.0,
+                    90.0
+                ]
+            }
+        }
+    }
+}

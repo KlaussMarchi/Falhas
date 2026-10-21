@@ -1,0 +1,25 @@
+{
+    "directory": "original",
+    "seed": 20261020,
+    "regions": {
+        "tiles": {
+            "n_images": 220,
+            "output": "tiles",
+            "params": {
+                "lensSigma": [
+                    8,
+                    50
+                ],
+                "lensCut": [
+                    0.0,
+                    0.5
+                ],
+                "lensEdge": [
+                    0.3,
+                    2.0
+                ],
+                "lensThick": 3.0
+            }
+        }
+    }
+}

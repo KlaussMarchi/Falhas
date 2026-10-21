@@ -1,0 +1,15 @@
+{
+    "directory": "original",
+    "seed": 20261020,
+    "regions": {
+        "tiles": {
+            "n_images": 220,
+            "output": "tiles",
+            "params": {
+                "gain": 1.0,
+                "gainJitter": 0.4,
+                "clip": 2.4
+            }
+        }
+    }
+}

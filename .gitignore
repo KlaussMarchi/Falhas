@@ -1,11 +1,9 @@
 *.pyc
-*.png
-*.jpeg
-*.jpg
-*.png
-*.npy
 *.pth
 *.bmp
 *.zip
 *.dat
+*.npy
+*.npz
+*.jpeg
 Articles/

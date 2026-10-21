@@ -10,7 +10,7 @@
         "test_iou": 0.7490510940551758
     },
     "processing": {
-        "network": "unet3d_v2",
+        "network": "dbrnet",
         "dataset": "dataset_wu",
         "img_size": [
             128,
@@ -32,7 +32,7 @@
         }
     },
     "model": {
-        "network": "unet3d_v2",
+        "network": "dbrnet",
         "img_size": [
             128,
             128,

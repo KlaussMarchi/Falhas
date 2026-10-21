@@ -1,0 +1,16 @@
+{
+    "directory": "original",
+    "seed": 20261020,
+    "regions": {
+        "tiles": {
+            "n_images": 220,
+            "output": "tiles",
+            "params": {
+                "bodyCount": [
+                    1,
+                    4
+                ]
+            }
+        }
+    }
+}

@@ -1,0 +1,9 @@
+C2_m4 220 6s
+  return {'name': os.path.basename(paths[0]), 'vis': float(np.nanmean(values)) if values else np.nan, 'label': float(msk.mean())}
+C2_m4 {'vis_p10': 0.685, 'vis_med': 0.867, 'vis_p90': 0.962, 'sem_rotulo': 0.005, 'rotulo': 0.061}
+        marg  marg_prec  energia    pad  cob_escala  den_escala  cob_continuidade  den_continuidade 
+C2_m4  0.645      0.789   -3.871 -1.881       0.403       0.799             0.054             0.279 
+C2_m4_v2 220 5s
+C2_m4_v2 {'vis_p10': 0.579, 'vis_med': 0.866, 'vis_p90': 0.951, 'sem_rotulo': 0.0, 'rotulo': 0.061}
+           marg  marg_prec  energia    pad  cob_escala  den_escala  cob_continuidade  den_continuida
+C2_m4_v2  0.638      0.758   -4.829 -1.938       0.357       0.786             0.062             0.2

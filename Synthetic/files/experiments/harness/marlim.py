@@ -181,8 +181,8 @@ SLABS = {}
 def slab(pid):
     if pid in SLABS:
         return SLABS[pid]
-    os.makedirs('/tmp/falhas_slabs', exist_ok=True)
-    cache = f'/tmp/falhas_slabs/slab_{pid}.npy'    # CACHE DESCARTÁVEL: REFEITO SOZINHO SE O /tmp FOR APAGADO
+    os.makedirs(f'{ROOT}/Synthetic/files/experiments/cache', exist_ok=True)
+    cache = f'{ROOT}/Synthetic/files/experiments/cache/slab_{pid}.npy'    # CACHE DESCARTÁVEL: REFEITO SOZINHO SE FOR APAGADO
     if os.path.exists(cache):
         SLABS[pid] = np.load(cache)
         return SLABS[pid]
@@ -263,3 +263,63 @@ def predictFastTTA(network, info, pid, flips=((), (0,), (2,), (0, 2)), stride=11
                 total[z:z + win, s:s + win] += q * weight
                 norm[z:z + win, s:s + win] += weight
     return total / norm
+
+
+# SEÇÃO VIVA DA INLINE ANOTADA (ENERGIA LOCAL > 0.05), A MESMA DO defectMetrics
+LIVE = {}
+
+def liveMask(pid):
+    if pid not in LIVE:
+        seismic   = np.load(f'{ROOT}/Blocks/Marlim/files/cache/real_center_{pid}.npy').astype(np.float32)
+        LIVE[pid] = NB['FaultStickExtractor']().energy(seismic) > 0.05
+    return LIVE[pid]
+
+
+# MÁSCARA IGUALADA: p^k COM k TAL QUE p^k >= 0.5 MARQUE frac DA SEÇÃO VIVA; O F1 PREMIA MARCAR POUCO, ENTÃO A COMPARAÇÃO
+# ENTRE MODELOS DE CALIBRAÇÃO DIFERENTE SE FAZ AQUI TAMBÉM
+def equalize(pid, sec, frac=0.01):
+    t = float(np.quantile(sec[liveMask(pid)], 1 - frac))
+    t = min(max(t, 1e-6), 1 - 1e-6)
+    k = float(np.log(0.5) / np.log(t))
+    return np.power(np.clip(sec, 0, 1), k).astype(np.float32), k
+
+
+# TODAS AS MEDIDAS DE UMA SEÇÃO: STICKS NO LIMIAR NATIVO, DEFEITOS DA MÁSCARA E OS STICKS COM A MÁSCARA IGUALADA EM 0.5/1/2%
+def sectionMetrics(pid, sec, fracs=(0.005, 0.01, 0.02)):
+    sm, _ = stickMetrics(pid, sec)
+    row   = {**sm, **defectMetrics(pid, sec)}
+
+    for frac in fracs:
+        eq, k = equalize(pid, sec, frac)
+        m, _  = stickMetrics(pid, eq)
+        tag   = f'{frac * 100:g}'
+        row.update({f'f1@{tag}': m['f1'], f'recall@{tag}': m['recall'], f'precisao@{tag}': m['precisao'], f'deteccao@{tag}': m['deteccao'], f'k@{tag}': round(k, 3)})
+
+    return row
+
+
+# AVALIA UM MODELO NOS PATCHES PEDIDOS (fast = SLAB COM JANELAS DE PASSO 112; senão O MÉTODO DO NOTEBOOK) E ACRESCENTA AO results.jsonl
+def run(modelDir, patches, tag, fast=True, results=None, save=None, extra=None):
+    network, info = loadNetwork(modelDir)
+    rows = []
+
+    for pid in patches:
+        t0  = time.time()
+        sec = predictFast(network, info, pid) if fast else predictSection(network, info, pid)
+        dt  = time.time() - t0
+        row = {'tag': tag, 'modelo': modelDir, 'rede': info['model']['network'], 'patch': pid, 'metodo': 'rapido' if fast else 'notebook', **(extra or {}), **sectionMetrics(pid, sec), 'seg': round(dt)}
+        rows.append(row)
+
+        if save:
+            os.makedirs(save, exist_ok=True)
+            np.save(f'{save}/{tag}_{pid}{"_fast" if fast else ""}.npy', sec.astype(np.float16))
+
+        if results:
+            with open(results, 'a') as file:
+                file.write(json.dumps(row) + '\n')
+
+        print(json.dumps({k: row[k] for k in ('tag', 'patch', 'metodo', 'f1', 'recall', 'precisao', 'mask_frac', 'f1@1', 'seg')}), flush=True)
+
+    del network
+    torch.cuda.empty_cache()
+    return rows
