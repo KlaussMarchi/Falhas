@@ -1,1 +1,0 @@
-{"network": "dbrnet", "dataset": "C0_v1", "img_size": null, "scaling": "normalize", "lr": 0.001, "loss": "dice_focal", "batch_size": 2, "scheduler": "plateau", "dropout": 0.1, "num_filters": 16, "ema": true, "epochs": 20, "patience": 15, "n_trials": 1, "trial": 1}

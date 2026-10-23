@@ -1,3 +1,0 @@
-{"id": "eval_teste_Q20_A0_t0", "kind": "eval", "model": "/home/grva-mint/Projects/Falhas/Synthetic/files/experiments/models/Q20_A0_t0/model_1", "tag": "Q20_A0_t0", "patches": ["1400", "2600"], "methods": [true], "medidas": false, "extra": {"dataset": "A0_ctrl", "epochs": 20, "trial": 0}, "need_mb": 3800}
-{"tag": "Q20_A0_t0", "patch": "1400", "metodo": "rapido", "f1": 0.186, "recall": 0.247, "precisao": 0.149, "mask_frac": 0.1072, "f1@1": 0.071, "seg": 129}
-{"tag": "Q20_A0_t0", "patch": "2600", "metodo": "rapido", "f1": 0.282, "recall": 0.311, "precisao": 0.258, "mask_frac": 0.1089, "f1@1": 0.134, "seg": 131}

@@ -6,4 +6,6 @@
 *.npy
 *.npz
 *.jpeg
+*.pkl
 Articles/
+Synthetic/files/experiments/

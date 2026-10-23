@@ -1,0 +1,72 @@
+{
+    "trainer": {
+        "path": "model_2",
+        "loss": "dice_focal",
+        "scheduler": "plateau",
+        "epochs": 100,
+        "batch_size": 2,
+        "ema": false,
+        "trial": 0,
+        "val_iou": 0.7024915218353271,
+        "test_iou": 0.6705489158630371
+    },
+    "processing": {
+        "network": "resaceunet_zu",
+        "dataset": "dataset_wu",
+        "img_size": null,
+        "scaling": "normalize",
+        "lr": 0.001,
+        "loss": "dice_focal",
+        "batch_size": 2,
+        "scheduler": "plateau",
+        "dropout": 0.1,
+        "num_filters": 32,
+        "ema": false,
+        "epochs": 100,
+        "n_trials": 1,
+        "trial": 0
+    },
+    "division": {
+        "val_size": 0.047619047619047616,
+        "test_size": 0.045454545454545456,
+        "n_images": {
+            "total": 220,
+            "train": 200,
+            "val": 10,
+            "test": 10
+        }
+    },
+    "model": {
+        "network": "resaceunet_zu",
+        "img_size": [
+            128,
+            128,
+            128
+        ],
+        "classes": 1,
+        "channels": 1,
+        "dropout": 0.1,
+        "num_filters": 32,
+        "lr": 0.001
+    },
+    "iou": {
+        "mean": 0.6705489158630371
+    },
+    "test": {
+        "dataset_wu": {
+            "tiles": 10,
+            "scaling": "normalize",
+            "accuracy": 0.9741239547729492,
+            "precision": 0.8257723303101283,
+            "recall": 0.7810503850780233,
+            "iou": 0.6705492949708772,
+            "f1": 0.8027889952000093,
+            "auc": 0.9807547909561455,
+            "tp": 1104506,
+            "fp": 233037,
+            "fn": 309623,
+            "tn": 19324354,
+            "timestamp": "23/10/26 13:10:33"
+        }
+    }
+}

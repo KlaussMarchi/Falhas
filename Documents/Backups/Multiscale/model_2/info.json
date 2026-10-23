@@ -1,6 +1,7 @@
 {
     "trainer": {
         "path": "model_2",
+        "source": "Documents/Backups/Multiscale/model_2",
         "loss": "dice_focal",
         "scheduler": "plateau",
         "epochs": 100,

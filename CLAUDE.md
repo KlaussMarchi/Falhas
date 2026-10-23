@@ -86,9 +86,14 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
    `model.img_size` vem do `shape` do `DataBase.csv` ou, com `crop` no `augmentations`, da janela do recorte. O
    `3 - Predict` lê o split do `division` e não tem valor próprio.
 5. **`Model/2 - Compare.ipynb`** junta todo `Backup/*/info.json` numa tabela e compara variações (média±std entre
-   trials); **`Model/3 - Predict.ipynb`** reavalia um modelo salvo no dataset dele e, se ele treinou em recorte, mede
-   também pelo protocolo da Tabela 2 da ResACEUnet (recortes 96³ metade em falha, média por recorte; no código deles
-   precisão e recall estão trocados).
+   trials); **`Model/3 - Predict.ipynb`** reavalia os modelos de um `BASE_PATH` no dataset em que cada um treinou (ou
+   num `DATASET` comum, sem os tiles vistos no treino), somando os voxels de todos os tiles de teste antes de dividir —
+   a mesma conta do `test_iou` — e grava as métricas no `test.<dataset>` do `info.json`. O protocolo da Tabela 2 da
+   ResACEUnet (recortes 96³) saiu dele em 08/10/2026 e só aparece nos relatórios de `Documents/`. A matriz de confusão e
+   a curva ROC (opcional, `ROC_CURVE`; histograma de log-odds por voxel, acumulado na mesma passada da rede) moram em
+   `Model/Metrics/ConfusionMatrix` e `Model/Metrics/ROC`. Com `SAVE_PATH`, cada modelo grava `matrix.png` e `roc.png` na
+   própria pasta (`_<dataset>` no nome quando testado fora do dataset do treino), e a `auc` entra no `test.<dataset>` do
+   `info.json`.
 6. **`Blocks/Marlim/Analysis.ipynb`** — o bloco real com interpretação. Predição e análise ficam num notebook só.
    - **Configuração:** `BASE_PATH` (a pasta dos `model_N/`: `../../Model/Backup` ou `../../Documents/Backups/<campanha>`),
      `MODELS`, `PATCH_IDS`, `OVERLAP`, `WINDOW` e os botões do extrator (`STICK_TOL 0.80`, `STICK_MIN 140`,

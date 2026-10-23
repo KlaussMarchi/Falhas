@@ -1,5 +1,0 @@
-Input Notebook:  1 - Profile.ipynb
-Output Notebook: 1 - Profile.ipynb
-Working directory: /home/grva-mint/Projects/Falhas/Synthetic
-Executing:   0%|          | 0/16 [00:00<?, ?cell/s]Executing notebook with kernel: python3
-Executing:   6%|▋         | 1/16 [00:01<00:18,  1.25s/cell]Executing:  44%|████▍     | 7/16 [00:01<00:01,  6.42cell/s]Executing:  50%|█████     | 8/16 [00:20<00:01,  6.42cell/s]Executing:  56%|█████▋    | 9/16 [00:57<00:59,  8.44s/cell]Executing:  69%|██████▉   | 11/16 [00:57<00:30,  6.02s/cell]Executing:  75%|███████▌  | 12/16 [01:10<00:24,  6.02s/cell]Executing:  81%|████████▏ | 13/16 [01:18<00:22,  7.38s/cell]Executing: 100%|██████████| 16/16 [01:20<00:00,  4.71s/cell]Executing: 100%|██████████| 16/16 [01:21<00:00,  5.08s/cell]

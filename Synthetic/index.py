@@ -46,6 +46,8 @@ class SyntheticGenerator:
         self.faultDrag        = (0.0, 0.0)    # FRAÇÃO DO REJEITO QUE VIRA FLEXURA (ARRASTO) NOS DOIS BLOCOS; (0, 0) NÃO SORTEIA
         self.faultDragWidth   = (4, 16)       # LARGURA DA FLEXURA EM VOXELS
         self.faultLabelMin    = 0.0           # REJEITO MÁXIMO (VOXELS) ABAIXO DO QUAL A FALHA DESLOCA SEM RÓTULO: SÓ AS PRINCIPAIS, COMO O INTÉRPRETE
+        self.faultLabelPeriod = 0.0           # O MESMO EM PERÍODOS DA WAVELET DO TILE (O LIMIAR ACOMPANHA A ESCALA); 0 DESLIGA
+        self.faultLabelEnergy = 0.0           # SÓ ROTULA ONDE A ENERGIA LOCAL DO REFLETOR SEM RUÍDO PASSA DESTA FRAÇÃO DA MEDIANA DO TILE; 0 DESLIGA
 
         self.waveletFreq     = (72, 99)       # FREQUÊNCIA DO RICKER
         self.waveletDuration = 0.1            # MEIA-DURAÇÃO DO KERNEL EM SEGUNDOS
@@ -77,6 +79,7 @@ class SyntheticGenerator:
         self.deadZoneDepth  = (0.2, 1.0)      # TOPO DA ZONA MORTA EM FRAÇÃO DA ALTURA DO TILE
         self.deadZoneLevel  = (0.02, 0.15)    # REFLETIVIDADE DA ZONA MORTA EM FRAÇÃO DA VIVA
         self.deadZoneHatch  = (0.0, 0.0)      # HACHURA DE MIGRAÇÃO NA ZONA MORTA EM FRAÇÃO DO DESVIO DA REFLETIVIDADE; (0, 0) NÃO SORTEIA
+        self.deadZoneLabel  = 0.5             # A ZONA MORTA SÓ TIRA O RÓTULO ONDE A REFLETIVIDADE CAI ABAIXO DESTA FRAÇÃO DA VIVA; 0 DEIXA A FALHA ATRAVESSAR, COMO O ESPECIALISTA
         self.hatchDip       = (30, 60)        # MERGULHO DA HACHURA EM GRAUS (VOXEL), NOS DOIS SENTIDOS
         self.hatchPeriod    = (8, 20)         # COMPRIMENTO DE ONDA DA HACHURA EM VOXELS
         self.surfaceDip     = 0.3             # INCLINAÇÃO MÁXIMA (TANGENTE) DO FUNDO DO MAR E DO TOPO DA ZONA MORTA
@@ -100,10 +103,11 @@ class SyntheticGenerator:
 
     # A FREQUÊNCIA DA WAVELET SÓ É SORTEADA ANTES DAS FALHAS QUANDO O REJEITO OU O RÓTULO DEPENDEM DO PERÍODO; SENÃO FICA ONDE SEMPRE ESTEVE
     def get(self):
-        f                 = self.getFrequency() if any(self.faultThrowPeriod) or self.faultVisible > 0 else None
+        f                 = self.getFrequency() if any(self.faultThrowPeriod) or self.faultVisible > 0 or self.faultLabelPeriod > 0 else None
         model, mask       = self.applyFaulting(self.applyBodies(self.applyGainField(self.applyShearing(self.applyFolding(self.applyLenses(self.tensor(self.genReflectivity())))))), f)
         model, mask, rock = self.applyColumn(model, mask)
-        image, mask       = self.applyDeadTraces(self.crop(self.applyNoise(self.applyWavelet(model, f)) * rock), self.crop(mask))
+        wave              = self.applyWavelet(model, f)
+        image, mask       = self.applyDeadTraces(self.crop(self.applyNoise(wave) * rock), self.crop(self.applyLabelEnergy(wave, mask)))
         image = (image - image.mean()) / (image.std(correction=0) + 1e-8)
         return image.float().cpu().numpy(), mask.cpu().numpy()
 
@@ -302,7 +306,7 @@ class SyntheticGenerator:
         limit     = np.random.uniform(*self.faultThrowPeriod) * period if any(self.faultThrowPeriod) else np.random.uniform(*self.faultThrow)
         throw     = self.getThrow(strike[0] * dx + strike[1] * dy + strike[2] * dz, distDip, limit)
         visible   = max(self.faultThreshold, self.faultVisible * period) if self.faultVisible > 0 else self.faultThreshold
-        visible   = np.inf if limit < self.faultLabelMin else visible
+        visible   = np.inf if limit < self.faultLabelMin or (self.faultLabelPeriod > 0 and limit < self.faultLabelPeriod * period) else visible
 
         if any(self.faultDrag):
             return self.applyDrag(model, masks, grid, dip, distPlane, throw, visible)
@@ -340,7 +344,7 @@ class SyntheticGenerator:
             fade  = 1 - (1 - np.random.uniform(*self.deadZoneLevel)) * dead
             hatch = self.getHatch() * (np.random.uniform(*self.deadZoneHatch) * scale) if any(self.deadZoneHatch) else 0.0
             model = model * fade + hatch * dead
-            mask  = mask * (fade > 0.5)
+            mask  = mask * (fade > self.deadZoneLabel)
 
         return model, mask, rock
 
@@ -422,6 +426,16 @@ class SyntheticGenerator:
     def rotate(self, wavelet):
         phase = np.radians(np.random.uniform(*self.waveletPhase))
         return np.cos(phase) * wavelet + np.sin(phase) * np.imag(hilbert(wavelet))
+
+    # RÓTULO SÓ ONDE HÁ REFLETOR PARA DESLOCAR: ONDE A ENERGIA LOCAL (RMS DE σ 4) DO TRAÇO SEM RUÍDO FICA ABAIXO DE faultLabelEnergy × A
+    # MEDIANA DO TILE (LENTE APAGADA, GANHO FRACO), A FALHA NÃO TEM O QUE MOSTRAR E O RÓTULO SAI; NÃO SORTEIA NADA
+    def applyLabelEnergy(self, wave, mask):
+        if self.faultLabelEnergy <= 0 or not mask.any():
+            return mask
+
+        energy = torch.sqrt(self.gaussian(wave ** 2, 4.0))
+        live   = energy[energy > 0.05 * energy.max()]
+        return mask * (energy > self.faultLabelEnergy * live.median())
 
     def applyNoise(self, image):
         volume = self.tensor(image)

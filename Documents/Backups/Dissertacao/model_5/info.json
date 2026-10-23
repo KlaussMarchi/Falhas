@@ -1,0 +1,72 @@
+{
+    "trainer": {
+        "path": "model_5",
+        "loss": "dice_focal",
+        "scheduler": "plateau",
+        "epochs": 100,
+        "batch_size": 2,
+        "ema": false,
+        "trial": 0,
+        "val_iou": 0.8200536370277405,
+        "test_iou": 0.7568017840385437
+    },
+    "processing": {
+        "network": "dbrnet",
+        "dataset": "dataset_74_wu",
+        "img_size": null,
+        "scaling": "normalize",
+        "lr": 0.001,
+        "loss": "dice_focal",
+        "batch_size": 2,
+        "scheduler": "plateau",
+        "dropout": 0.1,
+        "num_filters": 32,
+        "ema": false,
+        "epochs": 100,
+        "n_trials": 1,
+        "trial": 0
+    },
+    "division": {
+        "val_size": 0.047619047619047616,
+        "test_size": 0.045454545454545456,
+        "n_images": {
+            "total": 330,
+            "train": 300,
+            "val": 15,
+            "test": 15
+        }
+    },
+    "model": {
+        "network": "dbrnet",
+        "img_size": [
+            128,
+            128,
+            128
+        ],
+        "classes": 1,
+        "channels": 1,
+        "dropout": 0.1,
+        "num_filters": 32,
+        "lr": 0.001
+    },
+    "iou": {
+        "mean": 0.7568017840385437
+    },
+    "test": {
+        "dataset_74_wu": {
+            "tiles": 15,
+            "scaling": "normalize",
+            "accuracy": 0.9817740758260091,
+            "precision": 0.8505131467486723,
+            "recall": 0.8729137423302678,
+            "iou": 0.7568021324320381,
+            "f1": 0.8615678663645008,
+            "auc": 0.9934818951839199,
+            "tp": 1784158,
+            "fp": 313585,
+            "fn": 259753,
+            "tn": 29099784,
+            "timestamp": "23/10/26 13:10:33"
+        }
+    }
+}

@@ -1,3 +1,0 @@
-{"id": "eval_teste_anc_mar3_74wu440", "kind": "eval", "model": "/home/grva-mint/Projects/Falhas/Documents/Backups/Marcia/model_3", "tag": "anc_mar3_74wu440", "patches": ["1400", "2600"], "methods": [true], "medidas": false, "extra": {"dataset": "dataset_74_wu(440)", "scaling": "percentile", "receita": "completa"}, "need_mb": 3800}
-{"tag": "anc_mar3_74wu440", "patch": "1400", "metodo": "rapido", "f1": 0.159, "recall": 0.386, "precisao": 0.1, "mask_frac": 0.0346, "f1@1": 0.345, "seg": 298}
-{"tag": "anc_mar3_74wu440", "patch": "2600", "metodo": "rapido", "f1": 0.405, "recall": 0.501, "precisao": 0.34, "mask_frac": 0.0336, "f1@1": 0.413, "seg": 297}

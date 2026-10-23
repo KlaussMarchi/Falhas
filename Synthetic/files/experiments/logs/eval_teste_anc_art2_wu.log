@@ -1,3 +1,0 @@
-{"id": "eval_teste_anc_art2_wu", "kind": "eval", "model": "/home/grva-mint/Projects/Falhas/Documents/Backups/Artigo/model_2", "tag": "anc_art2_wu", "patches": ["1400", "2600"], "methods": [true], "medidas": false, "extra": {"dataset": "dataset_wu", "scaling": "normalize", "receita": "completa"}, "need_mb": 3800}
-{"tag": "anc_art2_wu", "patch": "1400", "metodo": "rapido", "f1": 0.202, "recall": 0.334, "precisao": 0.144, "mask_frac": 0.0432, "f1@1": 0.236, "seg": 306}
-{"tag": "anc_art2_wu", "patch": "2600", "metodo": "rapido", "f1": 0.381, "recall": 0.442, "precisao": 0.335, "mask_frac": 0.0503, "f1@1": 0.177, "seg": 306}

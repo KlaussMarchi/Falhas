@@ -1,0 +1,249 @@
+{
+ "seed": 20261022,
+ "regions": {
+  "z250": {
+   "n_images": 23,
+   "output": "z250",
+   "params": {
+    "noiseLevel": [
+     0.0,
+     0.15
+    ],
+    "faultCount": [
+     2,
+     8
+    ],
+    "faultThrowPeriod": [
+     0.2,
+     1.5
+    ],
+    "faultVisible": 0.15,
+    "faultDrag": [
+     0.0,
+     0.8
+    ],
+    "bodyCount": [
+     0,
+     3
+    ],
+    "bodyLayers": 0.5,
+    "lensSigma": [
+     8,
+     50
+    ],
+    "lensCut": [
+     0.0,
+     0.5
+    ],
+    "lensEdge": [
+     0.3,
+     2.0
+    ],
+    "lensThick": 3.0,
+    "gainField": 0.4,
+    "waveletPhase": [
+     -90.0,
+     90.0
+    ],
+    "deadZoneHatch": [
+     0.05,
+     0.2
+    ],
+    "deadTraceProb": 0.2,
+    "gain": 1.0,
+    "gainJitter": 0.4,
+    "clip": 2.4,
+    "waveletLog": true,
+    "waveletFreq": [
+     222.1,
+     259.0
+    ],
+    "seafloorProb": 0.97,
+    "deadZoneProb": 0.32
+   }
+  },
+  "z500": {
+   "n_images": 86,
+   "output": "z500",
+   "params": {
+    "noiseLevel": [
+     0.0,
+     0.15
+    ],
+    "faultCount": [
+     2,
+     8
+    ],
+    "faultThrowPeriod": [
+     0.2,
+     1.5
+    ],
+    "faultVisible": 0.15,
+    "faultDrag": [
+     0.0,
+     0.8
+    ],
+    "bodyCount": [
+     0,
+     3
+    ],
+    "bodyLayers": 0.5,
+    "lensSigma": [
+     8,
+     50
+    ],
+    "lensCut": [
+     0.0,
+     0.5
+    ],
+    "lensEdge": [
+     0.3,
+     2.0
+    ],
+    "lensThick": 3.0,
+    "gainField": 0.4,
+    "waveletPhase": [
+     -90.0,
+     90.0
+    ],
+    "deadZoneHatch": [
+     0.05,
+     0.2
+    ],
+    "deadTraceProb": 0.2,
+    "gain": 1.0,
+    "gainJitter": 0.4,
+    "clip": 2.4,
+    "waveletLog": true,
+    "waveletFreq": [
+     48.2,
+     161.1
+    ],
+    "seafloorProb": 0.05,
+    "deadZoneProb": 0.02
+   }
+  },
+  "z750": {
+   "n_images": 62,
+   "output": "z750",
+   "params": {
+    "noiseLevel": [
+     0.0,
+     0.15
+    ],
+    "faultCount": [
+     2,
+     8
+    ],
+    "faultThrowPeriod": [
+     0.2,
+     1.5
+    ],
+    "faultVisible": 0.15,
+    "faultDrag": [
+     0.0,
+     0.8
+    ],
+    "bodyCount": [
+     0,
+     3
+    ],
+    "bodyLayers": 0.5,
+    "lensSigma": [
+     8,
+     50
+    ],
+    "lensCut": [
+     0.0,
+     0.5
+    ],
+    "lensEdge": [
+     0.3,
+     2.0
+    ],
+    "lensThick": 3.0,
+    "gainField": 0.4,
+    "waveletPhase": [
+     -90.0,
+     90.0
+    ],
+    "deadZoneHatch": [
+     0.05,
+     0.2
+    ],
+    "deadTraceProb": 0.2,
+    "gain": 1.0,
+    "gainJitter": 0.4,
+    "clip": 2.4,
+    "waveletLog": true,
+    "waveletFreq": [
+     42.1,
+     50.5
+    ],
+    "seafloorProb": 0.05,
+    "deadZoneProb": 0.19
+   }
+  },
+  "z1000": {
+   "n_images": 49,
+   "output": "z1000",
+   "params": {
+    "noiseLevel": [
+     0.0,
+     0.15
+    ],
+    "faultCount": [
+     2,
+     8
+    ],
+    "faultThrowPeriod": [
+     0.2,
+     1.5
+    ],
+    "faultVisible": 0.15,
+    "faultDrag": [
+     0.0,
+     0.8
+    ],
+    "bodyCount": [
+     0,
+     3
+    ],
+    "bodyLayers": 0.5,
+    "lensSigma": [
+     8,
+     50
+    ],
+    "lensCut": [
+     0.0,
+     0.5
+    ],
+    "lensEdge": [
+     0.3,
+     2.0
+    ],
+    "lensThick": 3.0,
+    "gainField": 0.4,
+    "waveletPhase": [
+     -90.0,
+     90.0
+    ],
+    "deadZoneHatch": [
+     0.05,
+     0.2
+    ],
+    "deadTraceProb": 0.2,
+    "gain": 1.0,
+    "gainJitter": 0.4,
+    "clip": 2.4,
+    "waveletLog": true,
+    "waveletFreq": [
+     30.5,
+     40.2
+    ],
+    "seafloorProb": 0.05,
+    "deadZoneProb": 0.13
+   }
+  }
+ }
+}
