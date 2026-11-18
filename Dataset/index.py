@@ -2,62 +2,40 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
-import glob, os, shutil
+import glob, os, shutil, itertools
 
 
-# ARQUIVOS DE UMA PASTA (OU PADRÃO GLOB), EM CAMINHO ABSOLUTO E ORDEM ALFABÉTICA
 def getFiles(path, limit=None, shuffle=False):
-    target = sorted([os.path.abspath(f) for f in glob.glob(os.path.join(path, '*'))])
+    files = sorted(os.path.abspath(file) for file in glob.glob(os.path.join(path, '*')))
+
     if shuffle:
-        np.random.shuffle(target)
-    return target[:limit]
+        np.random.shuffle(files)
+
+    return files[:limit]
 
 
-# APAGA E RECRIA A PASTA
 def setFolder(path):
     if os.path.exists(path):
         shutil.rmtree(path)
+
     os.makedirs(path)
 
 
 # AS TRÊS SEÇÕES CENTRAIS DE UM VOLUME, COM A MÁSCARA POR CIMA QUANDO ELA VEM
 def showTile(img=None, mask=None, save=None):
-    if img is None and mask is None:
-        return print("Erro: Forneça pelo menos 'img' ou 'mask'.")
-
-    ref_vol = img if img is not None else mask
-    mid_x = ref_vol.shape[0] // 2
-    mid_y = ref_vol.shape[1] // 2
-    mid_z = ref_vol.shape[2] // 2
-
-    def get_slices(vol):
-        if vol is None:
-            return None
-
-        s_x = np.array(vol[mid_x, :, :]) # Plano YZ
-        s_y = np.array(vol[:, mid_y, :]) # Plano XZ
-        s_z = np.array(vol[:, :, mid_z]) # Plano XY
-        return [s_x, np.rot90(s_z, -1), s_y]
-
-    img_slices  = get_slices(img)
-    mask_slices = get_slices(mask)
-    cmap_mask_only    = ListedColormap(['black', 'red', 'green', 'blue'])
-    cmap_mask_overlay = ListedColormap([(0, 0, 0, 0), 'red', 'green', 'blue'])
+    overlay = img is not None
+    x, y, z = (size // 2 for size in (img if overlay else mask).shape[:3])
+    cuts    = {f'Slice X={x}': lambda vol: vol[x], f'Slice Y={y}': lambda vol: np.rot90(vol[:, :, z], -1), f'Slice Z={z}': lambda vol: vol[:, y]}
+    masking = {'cmap': ListedColormap([(0, 0, 0, 0) if overlay else 'black', 'red', 'green', 'blue']), 'vmin': 0, 'vmax': 3, 'alpha': 0.6 if overlay else None}
+    layers  = [(np.asarray(vol), options) for vol, options in ((img, {'cmap': 'gray'}), (mask, masking)) if vol is not None]
 
     fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-    titles    = [f'Slice X={mid_x}', f'Slice Y={mid_y}', f'Slice Z={mid_z}']
 
-    for i, ax in enumerate(axes):
-        if img is not None:
-            ax.imshow(img_slices[i], cmap='gray')
+    for ax, (title, cut) in zip(axes, cuts.items()):
+        for vol, options in layers:
+            ax.imshow(cut(vol), **options)
 
-        if mask is not None:
-            if img is not None:
-                ax.imshow(mask_slices[i], cmap=cmap_mask_overlay, vmin=0, vmax=3, alpha=0.6)
-            else:
-                ax.imshow(mask_slices[i], cmap=cmap_mask_only, vmin=0, vmax=3)
-
-        ax.set_title(titles[i])
+        ax.set_title(title)
 
     plt.tight_layout()
 
@@ -71,8 +49,7 @@ def showTile(img=None, mask=None, save=None):
 # ESCALONAMENTO DOS VOLUMES NO FORMAT, ESCOLHIDO PELO scaling DO info.json E GRAVADO NA COLUNA scaling DO DataBase.csv
 class Normalization:
     OPTIONS = ('normalize', 'percentile', 'standardize', None)
-    DEFAULT = 'normalize'                  # O MIN-MAX DE CADA VOLUME, DECISÃO DE 06/10/2026
-    UNIT    = ('normalize', 'percentile')  # OS QUE DEIXAM O VOLUME EM [0, 1], A ESCALA DOS .dat DO MARLIM
+    DEFAULT = 'normalize'    # O MIN-MAX DE CADA VOLUME, DECISÃO DE 06/10/2026
 
     def __init__(self, scaling=DEFAULT):
         if scaling not in self.OPTIONS:
@@ -84,12 +61,9 @@ class Normalization:
 
     # O PERCENTIL É DO CONJUNTO INTEIRO: LÊ TODOS OS VOLUMES UMA VEZ, ANTES DO PRIMEIRO; OS OUTROS MÉTODOS NÃO LEEM NADA
     def fit(self, paths, load):
-        if self.scaling != 'percentile':
-            return self
+        if self.scaling == 'percentile':
+            self.low, self.high = np.percentile([load(path) for path in paths], [1, 99]).tolist()
 
-        arrays = [load(path) for path in paths]
-        self.low, self.high = (float(value) for value in np.percentile(arrays, [1, 99]))
-        del arrays
         return self
 
     def __call__(self, img):
@@ -105,7 +79,12 @@ class Normalization:
         return img
 
     def __repr__(self):
-        names = {'normalize': 'min-max de cada volume para [0, 1]', 'percentile': f'corte no p01/p99 do conjunto ({self.low}, {self.high}) para [0, 1]', 'standardize': 'padronização de cada volume (média 0, desvio 1)', None: 'volume cru, sem escalonamento'}
+        names = {
+            'normalize': 'min-max de cada volume para [0, 1]',
+            'percentile': f'corte no p01/p99 do conjunto ({self.low}, {self.high}) para [0, 1]',
+            'standardize': 'padronização de cada volume (média 0, desvio 1)',
+            None: 'volume cru, sem escalonamento'
+        }
         return f'Normalization({self.scaling!r}): {names[self.scaling]}'
 
     # ESCALONAMENTO DE UM DataBase.csv: SEM A COLUNA É O DEFAULT, CÉLULA VAZIA É None
@@ -128,32 +107,18 @@ class TilesBuilder:
 
         self.target_size = tuple(int(size) for size in target_size)
         self.main_dir    = main_dir
+        setFolder(main_dir)
 
-        if os.path.exists(main_dir):
-            shutil.rmtree(main_dir)
-        os.makedirs(main_dir)
+    def update(self, path, folder, is_mask=False):
+        output = os.path.join(self.main_dir, folder)
+        os.makedirs(output, exist_ok=True)
 
-    def update(self, file_path, target_dir, is_mask=False):
-        folder = os.path.join(self.main_dir, target_dir)
-        os.makedirs(folder, exist_ok=True)
+        name   = os.path.splitext(os.path.basename(path))[0]
+        data   = np.load(path)
+        pad    = [(0, (size - n % size) % size) for n, size in zip(data.shape, self.target_size)]
+        data   = np.pad(data, pad, mode='constant' if is_mask else 'reflect') if any(after for _, after in pad) else data
+        starts = itertools.product(*(range(0, n, size) for n, size in zip(data.shape, self.target_size)))
+        zt, yt, xt = self.target_size
 
-        data = np.load(file_path)
-        base_name     = os.path.splitext(os.path.basename(file_path))[0]
-        z_t, y_t, x_t = self.target_size
-
-        z_pad = (z_t - data.shape[0] % z_t) % z_t
-        y_pad = (y_t - data.shape[1] % y_t) % y_t
-        x_pad = (x_t - data.shape[2] % x_t) % x_t
-
-        pad_mode    = 'constant' if is_mask else 'reflect'
-        data_padded = np.pad(data, ((0, z_pad), (0, y_pad), (0, x_pad)), mode=pad_mode) if z_pad > 0 or y_pad > 0 or x_pad > 0 else data
-
-        index = 0
-        for z in range(0, data_padded.shape[0], z_t):
-            for y in range(0, data_padded.shape[1], y_t):
-                for x in range(0, data_padded.shape[2], x_t):
-                    tile = data_padded[z:z+z_t, y:y+y_t, x:x+x_t]
-                    save_path = os.path.join(folder, f'{base_name}_tile_{index:04d}.npy')
-
-                    np.save(save_path, tile)
-                    index = (index + 1)
+        for index, (z, y, x) in enumerate(starts):
+            np.save(os.path.join(output, f'{name}_tile_{index:04d}.npy'), data[z:z + zt, y:y + yt, x:x + xt])

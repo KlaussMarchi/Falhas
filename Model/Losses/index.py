@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from monai import losses
 
 
@@ -165,6 +166,43 @@ class TverskyLoss(nn.Module):
             return 1.0 - (TP + self.SMOOTH) / (TP + self.ALPHA * FP + self.BETA * FN + self.SMOOTH)
 
 
+# SOFT-clDICE (SHIT ET AL., 2021, "clDice - a Novel Topology-Preserving Loss Function for Tubular Structure Segmentation", ALG. 1 E 2) SOMADO AO dice_focal:
+# O ESQUELETO SUAVE SAI DE EROSÕES E ABERTURAS ITERADAS (min e max pool 3D); A PRECISÃO TOPOLÓGICA É O ESQUELETO PREDITO DENTRO DO RÓTULO, E A SENSIBILIDADE
+# TOPOLÓGICA É O ESQUELETO DO RÓTULO COBERTO PELA PREDIÇÃO. NA FALHA, QUE É UMA LÂMINA, O ESQUELETO É A SUPERFÍCIE MEDIAL. L = (1 - a)*dice_focal + a*clDice,
+# COM a = 0,2 E 3 ITERAÇÕES (O RÓTULO LARGO TEM ~5 VOXELS); SÓ NO CASO BINÁRIO. COM a = 0,5 A dbrnet COLAPSOU EM "TUDO FUNDO" (val_iou 0 ATÉ A ÉPOCA 16)
+class DiceFocalClDiceLoss(nn.Module):
+    ALPHA  = 0.2
+    ITERS  = 3
+    SMOOTH = 1.0
+
+    def __init__(self, multiclass=False):
+        super().__init__()
+        self.base = DiceFocalLoss(multiclass=multiclass)
+
+    @staticmethod
+    def erode(x):
+        return torch.min(torch.min(-F.max_pool3d(-x, (3, 1, 1), 1, (1, 0, 0)), -F.max_pool3d(-x, (1, 3, 1), 1, (0, 1, 0))), -F.max_pool3d(-x, (1, 1, 3), 1, (0, 0, 1)))
+
+    def skeleton(self, x):
+        opened = lambda t: F.max_pool3d(self.erode(t), 3, 1, 1)
+        skel   = F.relu(x - opened(x))
+        for _ in range(self.ITERS):
+            x     = self.erode(x)
+            delta = F.relu(x - opened(x))
+            skel  = skel + F.relu(delta - skel * delta)
+        return skel
+
+    def forward(self, logits, target):
+        base = self.base(logits, target)
+        with torch.amp.autocast('cuda', enabled=False):
+            probs  = torch.sigmoid(logits.float())
+            target = target.float().view_as(probs)
+            sp, st = self.skeleton(probs), self.skeleton(target)
+            tprec  = ((sp * target).sum() + self.SMOOTH) / (sp.sum() + self.SMOOTH)
+            tsens  = ((st * probs).sum() + self.SMOOTH) / (st.sum() + self.SMOOTH)
+            return (1 - self.ALPHA) * base + self.ALPHA * (1.0 - 2.0 * tprec * tsens / (tprec + tsens))
+
+
 class Losses:
     FOCAL_ALPHA = 0.93
 
@@ -176,6 +214,7 @@ class Losses:
         'smooth_dice': SmoothDiceLoss,
         'compound': CompoundLoss,
         'tversky': TverskyLoss,
+        'dice_focal_cldice': DiceFocalClDiceLoss,
     }
 
     def __new__(cls, name, multiclass=False):

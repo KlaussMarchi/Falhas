@@ -1,0 +1,689 @@
+{
+    "directory": "original",
+    "seed": 20261027,
+    "regions": {
+        "z250": {
+            "n_images": 66,
+            "output": "z250",
+            "params": {
+                "noiseLevel": [
+                    0.0,
+                    0.15
+                ],
+                "faultCount": [
+                    2,
+                    8
+                ],
+                "faultThrowPeriod": [
+                    0.2,
+                    1.5
+                ],
+                "faultVisible": 0.15,
+                "faultDrag": [
+                    0.0,
+                    0.8
+                ],
+                "bodyCount": [
+                    0,
+                    3
+                ],
+                "bodyLayers": 0.5,
+                "lensSigma": [
+                    8,
+                    50
+                ],
+                "lensCut": [
+                    0.0,
+                    0.5
+                ],
+                "lensEdge": [
+                    0.3,
+                    2.0
+                ],
+                "lensThick": 3.0,
+                "gainField": 0.4,
+                "waveletPhase": [
+                    -90.0,
+                    90.0
+                ],
+                "deadZoneHatch": [
+                    0.05,
+                    0.2
+                ],
+                "deadTraceProb": 0.2,
+                "gain": 1.0,
+                "gainJitter": 0.4,
+                "clip": 2.4,
+                "waveletLog": true,
+                "waveletFreq": [
+                    131.2,
+                    297.0
+                ],
+                "seafloorProb": 0.3,
+                "deadZoneProb": 0.0,
+                "lateralSigma": [
+                    0.75,
+                    2.5
+                ],
+                "minorCount": [
+                    2,
+                    8
+                ],
+                "minorSigma": [
+                    15,
+                    40
+                ],
+                "minorThrow": [
+                    0.2,
+                    0.5
+                ],
+                "hatchPeriod": [
+                    10,
+                    22
+                ],
+                "faultDipAngle": [
+                    62,
+                    84
+                ]
+            }
+        },
+        "z500": {
+            "n_images": 52,
+            "output": "z500",
+            "params": {
+                "noiseLevel": [
+                    0.0,
+                    0.15
+                ],
+                "faultCount": [
+                    2,
+                    8
+                ],
+                "faultThrowPeriod": [
+                    0.2,
+                    1.5
+                ],
+                "faultVisible": 0.15,
+                "faultDrag": [
+                    0.0,
+                    0.8
+                ],
+                "bodyCount": [
+                    0,
+                    3
+                ],
+                "bodyLayers": 0.5,
+                "lensSigma": [
+                    8,
+                    50
+                ],
+                "lensCut": [
+                    0.0,
+                    0.5
+                ],
+                "lensEdge": [
+                    0.3,
+                    2.0
+                ],
+                "lensThick": 3.0,
+                "gainField": 0.4,
+                "waveletPhase": [
+                    -90.0,
+                    90.0
+                ],
+                "deadZoneHatch": [
+                    0.05,
+                    0.2
+                ],
+                "deadTraceProb": 0.2,
+                "gain": 1.0,
+                "gainJitter": 0.4,
+                "clip": 2.4,
+                "waveletLog": true,
+                "waveletFreq": [
+                    45.4,
+                    176.9
+                ],
+                "seafloorProb": 0.05,
+                "deadZoneProb": 0.1,
+                "lateralSigma": [
+                    0.75,
+                    2.5
+                ],
+                "minorCount": [
+                    2,
+                    8
+                ],
+                "minorSigma": [
+                    15,
+                    40
+                ],
+                "minorThrow": [
+                    0.2,
+                    0.5
+                ],
+                "hatchPeriod": [
+                    10,
+                    22
+                ],
+                "faultDipAngle": [
+                    62,
+                    84
+                ]
+            }
+        },
+        "z750": {
+            "n_images": 64,
+            "output": "z750",
+            "params": {
+                "noiseLevel": [
+                    0.0,
+                    0.15
+                ],
+                "faultCount": [
+                    2,
+                    8
+                ],
+                "faultThrowPeriod": [
+                    0.2,
+                    1.5
+                ],
+                "faultVisible": 0.15,
+                "faultDrag": [
+                    0.0,
+                    0.8
+                ],
+                "bodyCount": [
+                    0,
+                    3
+                ],
+                "bodyLayers": 0.5,
+                "lensSigma": [
+                    8,
+                    50
+                ],
+                "lensCut": [
+                    0.0,
+                    0.5
+                ],
+                "lensEdge": [
+                    0.3,
+                    2.0
+                ],
+                "lensThick": 3.0,
+                "gainField": 0.4,
+                "waveletPhase": [
+                    -90.0,
+                    90.0
+                ],
+                "deadZoneHatch": [
+                    0.05,
+                    0.2
+                ],
+                "deadTraceProb": 0.2,
+                "gain": 1.0,
+                "gainJitter": 0.4,
+                "clip": 2.4,
+                "waveletLog": true,
+                "waveletFreq": [
+                    33.8,
+                    47.1
+                ],
+                "seafloorProb": 0.05,
+                "deadZoneProb": 0.15,
+                "lateralSigma": [
+                    0.75,
+                    2.5
+                ],
+                "minorCount": [
+                    2,
+                    8
+                ],
+                "minorSigma": [
+                    15,
+                    40
+                ],
+                "minorThrow": [
+                    0.2,
+                    0.5
+                ],
+                "hatchPeriod": [
+                    10,
+                    22
+                ],
+                "faultDipAngle": [
+                    62,
+                    84
+                ]
+            }
+        },
+        "z1000": {
+            "n_images": 38,
+            "output": "z1000",
+            "params": {
+                "noiseLevel": [
+                    0.0,
+                    0.15
+                ],
+                "faultCount": [
+                    2,
+                    8
+                ],
+                "faultThrowPeriod": [
+                    0.2,
+                    1.5
+                ],
+                "faultVisible": 0.15,
+                "faultDrag": [
+                    0.0,
+                    0.8
+                ],
+                "bodyCount": [
+                    0,
+                    3
+                ],
+                "bodyLayers": 0.5,
+                "lensSigma": [
+                    8,
+                    50
+                ],
+                "lensCut": [
+                    0.0,
+                    0.5
+                ],
+                "lensEdge": [
+                    0.3,
+                    2.0
+                ],
+                "lensThick": 3.0,
+                "gainField": 0.4,
+                "waveletPhase": [
+                    -90.0,
+                    90.0
+                ],
+                "deadZoneHatch": [
+                    0.05,
+                    0.2
+                ],
+                "deadTraceProb": 0.2,
+                "gain": 1.0,
+                "gainJitter": 0.4,
+                "clip": 2.4,
+                "waveletLog": true,
+                "waveletFreq": [
+                    24.6,
+                    44.7
+                ],
+                "seafloorProb": 0.05,
+                "deadZoneProb": 0.5,
+                "lateralSigma": [
+                    0.75,
+                    2.5
+                ],
+                "minorCount": [
+                    2,
+                    8
+                ],
+                "minorSigma": [
+                    15,
+                    40
+                ],
+                "minorThrow": [
+                    0.2,
+                    0.5
+                ],
+                "hatchPeriod": [
+                    10,
+                    22
+                ],
+                "faultDipAngle": [
+                    62,
+                    84
+                ]
+            }
+        },
+        "z250_neg": {
+            "n_images": 16,
+            "output": "z250_neg",
+            "params": {
+                "noiseLevel": [
+                    0.0,
+                    0.15
+                ],
+                "faultCount": [
+                    0,
+                    1
+                ],
+                "faultThrowPeriod": [
+                    0.2,
+                    1.5
+                ],
+                "faultVisible": 0.15,
+                "faultDrag": [
+                    0.0,
+                    0.8
+                ],
+                "bodyCount": [
+                    0,
+                    3
+                ],
+                "bodyLayers": 0.5,
+                "lensSigma": [
+                    8,
+                    50
+                ],
+                "lensCut": [
+                    0.0,
+                    0.5
+                ],
+                "lensEdge": [
+                    0.3,
+                    2.0
+                ],
+                "lensThick": 3.0,
+                "gainField": 0.4,
+                "waveletPhase": [
+                    -90.0,
+                    90.0
+                ],
+                "deadZoneHatch": [
+                    0.05,
+                    0.2
+                ],
+                "deadTraceProb": 0.2,
+                "gain": 1.0,
+                "gainJitter": 0.4,
+                "clip": 2.4,
+                "waveletLog": true,
+                "waveletFreq": [
+                    131.2,
+                    297.0
+                ],
+                "seafloorProb": 0.3,
+                "deadZoneProb": 0.0,
+                "lateralSigma": [
+                    0.75,
+                    2.5
+                ],
+                "minorCount": [
+                    2,
+                    8
+                ],
+                "minorSigma": [
+                    15,
+                    40
+                ],
+                "minorThrow": [
+                    0.2,
+                    0.5
+                ],
+                "hatchPeriod": [
+                    10,
+                    22
+                ],
+                "faultDipAngle": [
+                    62,
+                    84
+                ]
+            }
+        },
+        "z500_neg": {
+            "n_images": 13,
+            "output": "z500_neg",
+            "params": {
+                "noiseLevel": [
+                    0.0,
+                    0.15
+                ],
+                "faultCount": [
+                    0,
+                    1
+                ],
+                "faultThrowPeriod": [
+                    0.2,
+                    1.5
+                ],
+                "faultVisible": 0.15,
+                "faultDrag": [
+                    0.0,
+                    0.8
+                ],
+                "bodyCount": [
+                    0,
+                    3
+                ],
+                "bodyLayers": 0.5,
+                "lensSigma": [
+                    8,
+                    50
+                ],
+                "lensCut": [
+                    0.0,
+                    0.5
+                ],
+                "lensEdge": [
+                    0.3,
+                    2.0
+                ],
+                "lensThick": 3.0,
+                "gainField": 0.4,
+                "waveletPhase": [
+                    -90.0,
+                    90.0
+                ],
+                "deadZoneHatch": [
+                    0.05,
+                    0.2
+                ],
+                "deadTraceProb": 0.2,
+                "gain": 1.0,
+                "gainJitter": 0.4,
+                "clip": 2.4,
+                "waveletLog": true,
+                "waveletFreq": [
+                    45.4,
+                    176.9
+                ],
+                "seafloorProb": 0.05,
+                "deadZoneProb": 0.1,
+                "lateralSigma": [
+                    0.75,
+                    2.5
+                ],
+                "minorCount": [
+                    2,
+                    8
+                ],
+                "minorSigma": [
+                    15,
+                    40
+                ],
+                "minorThrow": [
+                    0.2,
+                    0.5
+                ],
+                "hatchPeriod": [
+                    10,
+                    22
+                ],
+                "faultDipAngle": [
+                    62,
+                    84
+                ]
+            }
+        },
+        "z750_neg": {
+            "n_images": 16,
+            "output": "z750_neg",
+            "params": {
+                "noiseLevel": [
+                    0.0,
+                    0.15
+                ],
+                "faultCount": [
+                    0,
+                    1
+                ],
+                "faultThrowPeriod": [
+                    0.2,
+                    1.5
+                ],
+                "faultVisible": 0.15,
+                "faultDrag": [
+                    0.0,
+                    0.8
+                ],
+                "bodyCount": [
+                    0,
+                    3
+                ],
+                "bodyLayers": 0.5,
+                "lensSigma": [
+                    8,
+                    50
+                ],
+                "lensCut": [
+                    0.0,
+                    0.5
+                ],
+                "lensEdge": [
+                    0.3,
+                    2.0
+                ],
+                "lensThick": 3.0,
+                "gainField": 0.4,
+                "waveletPhase": [
+                    -90.0,
+                    90.0
+                ],
+                "deadZoneHatch": [
+                    0.05,
+                    0.2
+                ],
+                "deadTraceProb": 0.2,
+                "gain": 1.0,
+                "gainJitter": 0.4,
+                "clip": 2.4,
+                "waveletLog": true,
+                "waveletFreq": [
+                    33.8,
+                    47.1
+                ],
+                "seafloorProb": 0.05,
+                "deadZoneProb": 0.15,
+                "lateralSigma": [
+                    0.75,
+                    2.5
+                ],
+                "minorCount": [
+                    2,
+                    8
+                ],
+                "minorSigma": [
+                    15,
+                    40
+                ],
+                "minorThrow": [
+                    0.2,
+                    0.5
+                ],
+                "hatchPeriod": [
+                    10,
+                    22
+                ],
+                "faultDipAngle": [
+                    62,
+                    84
+                ]
+            }
+        },
+        "z1000_neg": {
+            "n_images": 10,
+            "output": "z1000_neg",
+            "params": {
+                "noiseLevel": [
+                    0.0,
+                    0.15
+                ],
+                "faultCount": [
+                    0,
+                    1
+                ],
+                "faultThrowPeriod": [
+                    0.2,
+                    1.5
+                ],
+                "faultVisible": 0.15,
+                "faultDrag": [
+                    0.0,
+                    0.8
+                ],
+                "bodyCount": [
+                    0,
+                    3
+                ],
+                "bodyLayers": 0.5,
+                "lensSigma": [
+                    8,
+                    50
+                ],
+                "lensCut": [
+                    0.0,
+                    0.5
+                ],
+                "lensEdge": [
+                    0.3,
+                    2.0
+                ],
+                "lensThick": 3.0,
+                "gainField": 0.4,
+                "waveletPhase": [
+                    -90.0,
+                    90.0
+                ],
+                "deadZoneHatch": [
+                    0.05,
+                    0.2
+                ],
+                "deadTraceProb": 0.2,
+                "gain": 1.0,
+                "gainJitter": 0.4,
+                "clip": 2.4,
+                "waveletLog": true,
+                "waveletFreq": [
+                    24.6,
+                    44.7
+                ],
+                "seafloorProb": 0.05,
+                "deadZoneProb": 0.5,
+                "lateralSigma": [
+                    0.75,
+                    2.5
+                ],
+                "minorCount": [
+                    2,
+                    8
+                ],
+                "minorSigma": [
+                    15,
+                    40
+                ],
+                "minorThrow": [
+                    0.2,
+                    0.5
+                ],
+                "hatchPeriod": [
+                    10,
+                    22
+                ],
+                "faultDipAngle": [
+                    62,
+                    84
+                ]
+            }
+        }
+    },
+    "origem": "Synthetic/files/experiments/datasets/specs.json[FINAL_marlim]",
+    "nota": "dataset final (Dataset/dataset_marlim): a configuração da C5 (C3 medido + 20% de tiles sem falha + borrão lateral + falhas menores sem rótulo + mergulho 62-84 + hachura 10-22) num sorteio novo (semente 20261027)",
+    "como": "SyntheticGenerator().dataset(...) grava original/<região>/{images,masks}; os arquivos foram achatados em original/{images,masks} (nomes únicos) para o Format.ipynb"
+}

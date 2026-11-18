@@ -55,8 +55,11 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
      Ao mudar uma etapa, confira um tile contra o `git show HEAD:Synthetic/index.py`: a máscara tem de sair idêntica.
    - O `Synthetic/Analysis.ipynb` mostra cada etapa e monta um dataset novo.
    - `Synthetic/Regions/Generator.ipynb` tem um gerador próprio (`MarlimSyntheticGenerator`), copiado do bloco real,
-     que alimenta o `Dataset/marlim_opt`.
-   - O `Synthetic/PROMPT.md` é o roteiro da próxima tarefa: calibrar o gerador por bloco.
+     que alimentou a primeira versão do `Dataset/marlim_opt`. Desde 11/2026 o `marlim_opt` sai do `SyntheticGenerator`,
+     pelo `synthetic.json` da própria pasta.
+   - A calibração do gerador por bloco e a campanha de redes moram em `Synthetic/files/experiments/` (fora do git): a
+     fila da GPU (`gpuqueue.py`), a régua oficial por seções (`checks/`), os ensembles e os datasets de teste. O estado
+     e o próximo passo estão no `PLANO.md` de lá; o histórico, com cada previsão e resultado, no `journal.md`.
 2. **`Dataset/<nome>/Format.ipynb`.** Lê `original/*/images|masks`, escalona e grava `images/`, `masks/` e
    o `DataBase.csv` (`id`, estatísticas, `shape`, `img_path`/`mask_path` absolutos, `scaling`). Também reescreve
    `Task/info.json` com o nome do dataset. O que se repete entre os `Format` mora no `Dataset/index.py`: `getFiles`,
@@ -65,8 +68,10 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
    (corte no p01/p99 do conjunto inteiro, reescalado para `[0,1]`), `'standardize'` (média 0 e desvio 1 por volume, o
    passo do artigo da ResACEUnet) ou `null` (volume cru). A escolha fica na coluna `scaling` do `DataBase.csv`
    (`Normalization.read`: sem ela é o min-max, célula vazia é `null`), e o `1 - Model`, o `Model_CV` e o `3 - Predict`
-   param com erro se ela não bater com a rodada. O `marlim_opt` é `'percentile'`: o min-max por volume desfaria o ganho
-   global do gerador. O `dataset_74_wu` não tem `images/` próprios: junta os do `dataset_74` e do `dataset_wu` e roda,
+   param com erro se ela não bater com a rodada. O `marlim_opt` é `'normalize'` desde 17/11/2026: 495 tiles do
+   `SyntheticGenerator` em dois regimes, 220 na configuração do `dataset_74` (com o `gain`/`clip` que dão o contraste e
+   a saturação do bloco) e 275 calibrados no Marlim, sem rótulo nas falhas menores; o `README.md` da pasta tem a receita
+   e os números (a versão anterior, calma, está em `Synthetic/files/experiments/marlim_opt_calma`). O `dataset_74_wu` não tem `images/` próprios: junta os do `dataset_74` e do `dataset_wu` e roda,
    por papermill, o `Format` da fonte que não estiver no `scaling` da rodada (no percentil, cada fonte com o seu). Os
    modelos salvos antes de 06/10/2026 têm `scaling: "percentile"`. O Marlim continua no p01/p99 do próprio bloco;
    medido: a `dbrnet` treinada com percentil perde só 0,005 de IoU no dado com min-max. O `dataset_zu` é o `200-20.zip` que os
@@ -112,6 +117,11 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
 7. **`Blocks/Iracema/Analysis.ipynb`** — o mesmo notebook para o Iracema, que não tem interpretação: só figuras e o
    resumo da inline. Os tiles ficam soltos em `files/patches/`, com um `files/patch_metadata.json` (2751 × 2000 × 1754,
    38 528 tiles). Com `FULL_PREDICT = False` ele prediz só os tiles que cobrem a `INLINE`.
+   - **`Blocks/F3/Analysis.ipynb`** é a mesma cópia para o F3 (Mar do Norte, Holanda), também sem interpretação: 651 × 462 ×
+     951 em 1320 tiles soltos em `files/patches/` (mesmo corte e mesma escala p01/p99 em `[0,1]`; o SEG-Y original fica em
+     `~/Projects/falhas_f3`). Prediz o bloco inteiro por padrão (`FULL_PREDICT`: ~11 GB de `.dat` em `masks/` por modelo,
+     um por tile) e grava em `<BASE_PATH>/<modelo>/f3` e `<BASE_PATH>/outputs/f3`. O `predicted.npy` (1,1 GB) só sai com
+     `SAVE_PRED = True`; o padrão é `False`.
 8. **`Synthetic/Regions/Marlim/Analysis.ipynb`** separa o bloco real em tiles `calm`/`faulted`/`dead` por conteúdo
    (semblance, envelope RMS, distância da falha anotada) → `files/<região>/*.npy` + `files/DataBase.csv`, com
    `img_path` absoluto. Os patches continuam sendo lidos de `Blocks/Marlim/files/patches`.
@@ -148,8 +158,11 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
   `segresnet`, `resaceunet_grva`, `resaceunet_wu` (a `ResACEUNet2` atual do repositório dos autores),
   `resaceunet_zu` (a do artigo, 3 estágios, do primeiro commit), `macnn`, `fault_seg_net`, `nru_net`, `fault_edge_former`,
   `nra_sanet`. A `dbrnet` é a antiga `unet3d_v2`: um `info.json` com o nome velho só carrega trocando o nome.
+  O `ensemble` (`types/Ensemble.py`) não treina: é a média das probabilidades de várias redes prontas (`members` no
+  `model` do `info.json`), elevada a `power` (o ponto de operação) e com espelhos laterais opcionais (`flips`). Roda nos
+  notebooks dos blocos como qualquer `model_N`; quem monta é o `checks/make_ensemble.py` da campanha.
 - **Nova loss:** classe em `Model/Losses/index.py` e entrada em `Losses.options` (`cross_entropy`, `dice_focal`,
-  `dice_ce`, `focal`, `smooth_dice`, `compound`, `tversky`). Toda loss força `float32` fora do autocast. No MONAI 1.5.2 o termo
+  `dice_ce`, `focal`, `smooth_dice`, `compound`, `tversky`, `dice_focal_cldice`). Toda loss força `float32` fora do autocast. No MONAI 1.5.2 o termo
   focal do `DiceFocalLoss` é sempre sigmoide, mesmo no caso multiclasse — considere isso antes de comparar campanhas
   `dice_focal`.
 - **Aumentação:** só pelo `augmentations` do `info.json` (`null`/ausente = tiles do `Format` como estão, bit a bit igual

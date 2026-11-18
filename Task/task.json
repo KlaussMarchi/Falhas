@@ -1,31 +1,15 @@
 [
     {
-        "network": "fault_seg_net",
-        "dataset": "dataset_74_wu",
+        "network": "dbrnet",
+        "dataset": "marlim_opt",
         "img_size": null,
         "scaling": "normalize",
         "lr": 0.001,
         "loss": "dice_focal",
-        "batch_size": 2,
+        "batch_size": 1,
         "scheduler": "plateau",
         "dropout": 0.1,
         "num_filters": 32,
-        "ema": true,
-        "epochs": 100,
-        "n_trials": 1
-    },
-
-    {
-        "network": "nra_sanet",
-        "dataset": "dataset_74_wu",
-        "img_size": null,
-        "scaling": "normalize",
-        "lr": 0.001,
-        "loss": "dice_focal",
-        "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.1,
-        "num_filters": 16,
         "ema": true,
         "epochs": 100,
         "n_trials": 1

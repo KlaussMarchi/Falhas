@@ -15,13 +15,17 @@ from .types.NRUNet import NRUNet
 from .types.MACNN  import MACNN
 from .types.FaultEdgeFormer import FaultEdgeFormer
 from .types.NRASANet import NRASANet
+from .types.Ensemble import Ensemble
 
 
 class ModelNetwork:
     selected = None
 
-    def __init__(self, network, img_size, classes=1, channels=1, lr=1e-4, dropout=0.1, num_filters=16):
+    def __init__(self, network, img_size, classes=1, channels=1, lr=1e-4, dropout=0.1, num_filters=16, members=None, power=1.0, flips=None):
         self.network = network
+        self.members = members
+        self.power   = power
+        self.flips   = flips
         self.img_size = img_size
         self.classes  = classes
         self.multiclass  = (self.classes > 1)
@@ -86,4 +90,17 @@ class ModelNetwork:
         if self.network == 'nra_sanet':
             return NRASANet(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
 
+        # MÉDIA DE REDES DE SEMENTES DIFERENTES: members É A LISTA DOS ARGUMENTOS DE CADA UMA, NO FORMATO DO model DO info.json
+        if self.network == 'ensemble':
+            return Ensemble([ModelNetwork.build(member) for member in self.members], self.power, self.flips)
+
         return None
+
+    # A REDE DE UM MEMBRO SEM O OTIMIZADOR NEM A MÉTRICA (O ENSEMBLE INTEIRO VAI PARA A PLACA DEPOIS)
+    @staticmethod
+    def build(options):
+        network = ModelNetwork.__new__(ModelNetwork)
+        network.network, network.img_size, network.classes = options['network'], options.get('img_size'), options.get('classes', 1)
+        network.channels, network.dropout, network.num_filters = options.get('channels', 1), options.get('dropout', 0.1), options.get('num_filters', 16)
+        network.members, network.power, network.flips = options.get('members'), options.get('power', 1.0), options.get('flips')
+        return network.get()

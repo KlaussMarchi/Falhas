@@ -1,8 +1,10 @@
 import numpy as np
+import pandas as pd
 import scipy.ndimage as ndimage
 from scipy.signal import hilbert
 from scipy.special import ndtri
 import os, json, copy, shutil
+import cv2
 import torch
 import torch.nn.functional as F
 from functools import lru_cache
@@ -33,6 +35,7 @@ class SyntheticGenerator:
         self.faultCount      = (5, 10)        # FALHAS POR TILE, TETO EXCLUSIVO
         self.faultThrow      = (15, 32)       # REJEITO MÁXIMO EM VOXELS
         self.faultDipAngle   = (55, 81)       # MERGULHO DO PLANO EM GRAUS
+        self.faultStrike     = (0.0, 2 * np.pi) # AZIMUTE DA NORMAL NO PLANO (x, y) EM RADIANOS; π/2 = FALHA AO LONGO DE x, QUE A SEÇÃO DE x CONSTANTE CORTA NO MERGULHO VERDADEIRO
         self.faultRoughness  = 3.54           # AMPLITUDE DA RUGOSIDADE DO PLANO
         self.faultRoughSigma = 8.55           # COMPRIMENTO DE ONDA DA RUGOSIDADE
         self.faultDecaySigma = (49, 59)       # ALCANCE DO REJEITO GAUSSIANO
@@ -43,17 +46,24 @@ class SyntheticGenerator:
 
         self.faultThrowPeriod = (0.0, 0.0)    # REJEITO MÁXIMO EM PERÍODOS DA WAVELET DO TILE NO LUGAR DO faultThrow; (0, 0) DESLIGA
         self.faultVisible     = 0.0           # SÓ ROTULA ONDE O REJEITO PASSA DESTA FRAÇÃO DO PERÍODO; 0 DESLIGA
+        self.faultNormal      = 0.5           # CHANCE DE A FALHA SER NORMAL (O BLOCO DE CIMA DESCE); 0,5 É O SORTEIO DE SEMPRE, 1 VIRA TODA REVERSA EM NORMAL SEM SORTEIO A MAIS
         self.faultDrag        = (0.0, 0.0)    # FRAÇÃO DO REJEITO QUE VIRA FLEXURA (ARRASTO) NOS DOIS BLOCOS; (0, 0) NÃO SORTEIA
         self.faultDragWidth   = (4, 16)       # LARGURA DA FLEXURA EM VOXELS
         self.faultLabelMin    = 0.0           # REJEITO MÁXIMO (VOXELS) ABAIXO DO QUAL A FALHA DESLOCA SEM RÓTULO: SÓ AS PRINCIPAIS, COMO O INTÉRPRETE
         self.faultLabelPeriod = 0.0           # O MESMO EM PERÍODOS DA WAVELET DO TILE (O LIMIAR ACOMPANHA A ESCALA); 0 DESLIGA
         self.faultLabelEnergy = 0.0           # SÓ ROTULA ONDE A ENERGIA LOCAL DO REFLETOR SEM RUÍDO PASSA DESTA FRAÇÃO DA MEDIANA DO TILE; 0 DESLIGA
 
+        self.minorCount = (0, 0)              # FALHAS MENORES SEM RÓTULO POR TILE (CURTAS E DE REJEITO PEQUENO, AS QUE O INTÉRPRETE NÃO DESENHA), TETO EXCLUSIVO; (0, 0) NÃO SORTEIA
+        self.minorThrow = (0.15, 0.5)         # REJEITO MÁXIMO DA FALHA MENOR EM PERÍODOS DA WAVELET DO TILE
+        self.minorSigma = (10, 30)            # ALCANCE (σ) DO REJEITO GAUSSIANO DA FALHA MENOR EM VOXELS
+        self.minorLabel = False               # True ROTULA AS FALHAS MENORES COMO AS PRINCIPAIS (MESMA MEIA-ESPESSURA, MESMO REJEITO VISÍVEL); A IMAGEM NÃO MUDA
+
         self.waveletFreq     = (72, 99)       # FREQUÊNCIA DO RICKER
         self.waveletDuration = 0.1            # MEIA-DURAÇÃO DO KERNEL EM SEGUNDOS
         self.waveletDt       = 0.0012         # AMOSTRAGEM DO KERNEL
         self.waveletLog      = False          # True SORTEIA A FREQUÊNCIA EM ESCALA LOG: CADA OITAVA DE PERÍODO COM O MESMO PESO
         self.waveletPhase    = (0.0, 0.0)     # ROTAÇÃO DE FASE DO RICKER EM GRAUS; (0, 0) NÃO SORTEIA
+        self.lateralSigma    = (0.0, 0.0)     # σ (x, y) DO BORRÃO LATERAL DO SINAL ANTES DO RUÍDO: A RESOLUÇÃO LATERAL DA MIGRAÇÃO; (0, 0) NÃO SORTEIA
 
         self.noiseLevel = (0.015, 0.618)      # RUÍDO EM FRAÇÃO DO DESVIO DO SINAL
         self.noiseSigma = (1.0, 1.0, 0.5)     # GRÃO DO RUÍDO EM (x, y, z)
@@ -85,6 +95,7 @@ class SyntheticGenerator:
         self.surfaceDip     = 0.3             # INCLINAÇÃO MÁXIMA (TANGENTE) DO FUNDO DO MAR E DO TOPO DA ZONA MORTA
         self.deadTraceProb  = 0.0             # CHANCE DE TRAÇOS MORTOS DE BORDA, COM O DADO ESPELHADO EM VOLTA COMO NOS TILES DE BORDA DO MARLIM
         self.deadTraceWidth = (1, 8)          # TRAÇOS MORTOS DE CADA LADO DO EIXO DO ESPELHO, TETO EXCLUSIVO
+        self.deadTraceBoth  = False           # True PÕE A BORDA NO LADO DE ÍNDICE ALTO METADE DAS VEZES (O TILE ESPELHADO NO EIXO); False É O SORTEIO DE SEMPRE, SÓ NO LADO BAIXO
 
         self.gain       = None                # GANHO DO TILE Z-SCORADO; None GRAVA O TILE COMO SAI DO get()
         self.gainJitter = 0.0                 # DESVIO DO LOG-GANHO ENTRE TILES DO MESMO LOTE
@@ -103,10 +114,10 @@ class SyntheticGenerator:
 
     # A FREQUÊNCIA DA WAVELET SÓ É SORTEADA ANTES DAS FALHAS QUANDO O REJEITO OU O RÓTULO DEPENDEM DO PERÍODO; SENÃO FICA ONDE SEMPRE ESTEVE
     def get(self):
-        f                 = self.getFrequency() if any(self.faultThrowPeriod) or self.faultVisible > 0 or self.faultLabelPeriod > 0 else None
+        f                 = self.getFrequency() if any(self.faultThrowPeriod) or self.faultVisible > 0 or self.faultLabelPeriod > 0 or any(self.minorCount) else None
         model, mask       = self.applyFaulting(self.applyBodies(self.applyGainField(self.applyShearing(self.applyFolding(self.applyLenses(self.tensor(self.genReflectivity())))))), f)
         model, mask, rock = self.applyColumn(model, mask)
-        wave              = self.applyWavelet(model, f)
+        wave              = self.applyLateral(self.applyWavelet(model, f))
         image, mask       = self.applyDeadTraces(self.crop(self.applyNoise(wave) * rock), self.crop(self.applyLabelEnergy(wave, mask)))
         image = (image - image.mean()) / (image.std(correction=0) + 1e-8)
         return image.float().cpu().numpy(), mask.cpu().numpy()
@@ -276,35 +287,68 @@ class SyntheticGenerator:
         return fill * (level * volume.std(correction=0) / (fill.std(correction=0) + 1e-8))
 
     def applyFaulting(self, reflectivity, frequency=None):
-        model  = self.tensor(reflectivity)
-        masks  = torch.zeros(self.shape, dtype=torch.uint8, device=self.device)
-        period = None if frequency is None else 1 / (frequency * self.waveletDt)
+        period       = None if frequency is None else 1 / (frequency * self.waveletDt)
+        masks        = torch.zeros(self.shape, dtype=torch.uint8, device=self.device)
+        model, masks = self.applyMinorFaults(self.tensor(reflectivity), masks, period)
 
         for _ in range(np.random.randint(*self.faultCount)):
             model, masks = self.applyFault(model, masks, period)
 
         return self.output(model, reflectivity), self.output(masks, reflectivity)
 
-    def applyFault(self, model, masks, period=None):
+    # FALHAS MENORES, ANTES DAS PRINCIPAIS (QUE AS CORTAM): REJEITO GAUSSIANO CURTO E PEQUENO, SEM RÓTULO, COMO AS QUE O INTÉRPRETE NÃO DESENHA.
+    # SAEM DE UM FLUXO PRÓPRIO DO np.random, SEMEADO PELO ESTADO ATUAL E DEVOLVIDO NO FIM: O RESTO DO TILE É O DA MESMA SEMENTE SEM ELAS.
+    # COM minorLabel O RÓTULO SEGUE A REGRA DAS PRINCIPAIS SEM SORTEIO A MAIS, E AS PRINCIPAIS O CORTAM E CARREGAM COMO CARREGAM O DELAS
+    def applyMinorFaults(self, model, masks, period):
+        if not any(self.minorCount):
+            return model, masks
+
+        visible = max(self.faultThreshold, self.faultVisible * period) if self.faultVisible > 0 else self.faultThreshold
+        state   = np.random.get_state()
+        grid  = [self.tensor(np.arange(size)).reshape(shape) for size, shape in zip(self.shape, ((-1, 1, 1), (1, -1, 1), (1, 1, -1)))]
+        np.random.seed((int(state[1][state[2] % 624]) + int(state[2])) % 2 ** 32)
+
+        for _ in range(np.random.randint(*self.minorCount)):
+            sense, dip, distStrike, distDip, distPlane = self.getPlane(grid)
+            sigma  = np.random.uniform(*self.minorSigma)
+            throw  = torch.exp((distStrike ** 2 + distDip ** 2) / -(2.0 * sigma ** 2)) * (np.random.uniform(*self.minorThrow) * period)
+            throw  = -throw if sense < 0 and self.isNormal() else throw
+            coords = [(points + throw * step).float() for points, step in zip(grid, dip)]
+            model  = torch.where(distPlane > 0, self.resample(model, coords), model)
+
+            if self.minorLabel:
+                masks = torch.where(distPlane > 0, self.pick(masks, coords), masks) if masks.any() else masks
+                masks = masks | ((distPlane.abs() <= self.faultZoneWidth) & (throw.abs() > visible))
+
+        np.random.set_state(state)
+        return model, masks
+
+    # PLANO DE UMA FALHA: CENTRO, MERGULHO, AZIMUTE E SENTIDO SORTEADOS; DEVOLVE O SENTIDO, O VETOR DE MERGULHO E A DISTÂNCIA DE CADA VOXEL
+    # AO LONGO DO AZIMUTE, AO LONGO DO MERGULHO E ATÉ O PLANO
+    def getPlane(self, grid):
         p0        = np.random.uniform(0.15, 0.85, 3) * np.array(self.shape)
         dipRad    = np.deg2rad(np.random.uniform(*self.faultDipAngle))
-        strikeRad = np.random.uniform(0, 2 * np.pi)
-        normal    = np.array([np.sin(dipRad) * np.cos(strikeRad), np.sin(dipRad) * np.sin(strikeRad), np.cos(dipRad) * np.random.choice([-1.0, 1.0])])
+        strikeRad = np.random.uniform(*self.faultStrike)
+        sense     = np.random.choice([-1.0, 1.0])
+        normal    = np.array([np.sin(dipRad) * np.cos(strikeRad), np.sin(dipRad) * np.sin(strikeRad), np.cos(dipRad) * sense])
         strike    = np.array([-normal[1], normal[0], 0.0])
         strike    = np.array([1.0, 0.0, 0.0]) if np.linalg.norm(strike) < 1e-6 else strike / np.linalg.norm(strike)
         dip       = np.cross(normal, strike)
         dip      /= np.linalg.norm(dip)
-        grid      = [self.tensor(np.arange(size)).reshape(shape) for size, shape in zip(self.shape, ((-1, 1, 1), (1, -1, 1), (1, 1, -1)))]
 
         normal, strike, dip = normal.tolist(), strike.tolist(), dip.tolist()
         dx, dy, dz          = [points - origin for points, origin in zip(grid, p0)]
+        return sense, dip, strike[0] * dx + strike[1] * dy + strike[2] * dz, dip[0] * dx + dip[1] * dy + dip[2] * dz, normal[0] * dx + normal[1] * dy + normal[2] * dz
 
-        distDip   = dip[0] * dx + dip[1] * dy + dip[2] * dz
-        distPlane = normal[0] * dx + normal[1] * dy + normal[2] * dz
+    def applyFault(self, model, masks, period=None):
+        grid                                       = [self.tensor(np.arange(size)).reshape(shape) for size, shape in zip(self.shape, ((-1, 1, 1), (1, -1, 1), (1, 1, -1)))]
+        sense, dip, distStrike, distDip, distPlane = self.getPlane(grid)
+
         bend      = self.getBend(distDip)
         distPlane = distPlane + self.gaussian(self.getField(self.shape), self.faultRoughSigma).double() * self.faultRoughness - bend
         limit     = np.random.uniform(*self.faultThrowPeriod) * period if any(self.faultThrowPeriod) else np.random.uniform(*self.faultThrow)
-        throw     = self.getThrow(strike[0] * dx + strike[1] * dy + strike[2] * dz, distDip, limit)
+        throw     = self.getThrow(distStrike, distDip, limit)
+        throw     = -throw if sense < 0 and self.isNormal() else throw
         visible   = max(self.faultThreshold, self.faultVisible * period) if self.faultVisible > 0 else self.faultThreshold
         visible   = np.inf if limit < self.faultLabelMin or (self.faultLabelPeriod > 0 and limit < self.faultLabelPeriod * period) else visible
 
@@ -316,6 +360,14 @@ class SyntheticGenerator:
         model   = torch.where(hanging, self.resample(model, coords), model)
         masks   = torch.where(hanging, self.pick(masks, coords), masks) if masks.any() else masks
         return model, masks | ((distPlane.abs() <= self.faultZoneWidth) & (throw.abs() > visible))
+
+    # A FALHA COM sense −1 É REVERSA (A CAPA SOBE); O REJEITO NEGATIVO A FAZ NORMAL COM O MESMO PLANO E O MESMO RÓTULO. ENTRE 0,5 E 1 UM
+    # SORTEIO DECIDE (2·faultNormal − 1 DAS REVERSAS VIRAM NORMAIS); NAS PONTAS NÃO HÁ SORTEIO
+    def isNormal(self):
+        if self.faultNormal <= 0.5 or self.faultNormal >= 1:
+            return self.faultNormal >= 1
+
+        return np.random.random() < 2 * self.faultNormal - 1
 
     # ARRASTO: A FRAÇÃO c DO REJEITO VIRA FLEXURA DE LARGURA w NOS DOIS BLOCOS E O RESTO É O SALTO NO PLANO; O RÓTULO VÊ O REJEITO TODO
     def applyDrag(self, model, masks, grid, dip, distPlane, throw, visible):
@@ -362,7 +414,8 @@ class SyntheticGenerator:
         return hatch / (hatch.std(correction=0) + 1e-8)
 
     # BORDA DO LEVANTAMENTO COMO NOS TILES DE BORDA DO MARLIM: O LADO DE FORA DE UMA POSIÇÃO LATERAL É O ESPELHO DO LADO DE DENTRO
-    # (O PATCH É COMPLETADO POR REFLEXÃO), COM UMA FAIXA DE AMPLITUDE ZERO NO EIXO E UMA RAMPA ATÉ O DADO VIVO; FAIXA E RAMPA SEM RÓTULO
+    # (O PATCH É COMPLETADO POR REFLEXÃO), COM UMA FAIXA DE AMPLITUDE ZERO NO EIXO E UMA RAMPA ATÉ O DADO VIVO; FAIXA E RAMPA SEM RÓTULO.
+    # O CENTRO SÓ CAI NA METADE DE ÍNDICE BAIXO; COM deadTraceBoth, O TILE INTEIRO SAI ESPELHADO NO EIXO METADE DAS VEZES, E O SORTEIO A MAIS SÓ ACONTECE COM ELE
     def applyDeadTraces(self, image, mask):
         if self.deadTraceProb <= 0 or np.random.random() >= self.deadTraceProb:
             return image, mask
@@ -374,7 +427,10 @@ class SyntheticGenerator:
         pos    = np.arange(image.shape[axis])
         index  = torch.as_tensor(np.where(pos >= center, pos, 2 * center - pos), device=self.device)
         gain   = self.tensor(np.clip((np.abs(pos - center) - width + 1) / (ramp + 1), 0, 1)).reshape([-1 if a == axis else 1 for a in range(3)])
-        return image.index_select(axis, index) * gain, mask.index_select(axis, index) * (gain >= 1)
+        image, mask = image.index_select(axis, index) * gain, mask.index_select(axis, index) * (gain >= 1)
+        if self.deadTraceBoth and np.random.random() < 0.5:
+            image, mask = torch.flip(image, (axis,)), torch.flip(mask, (axis,))
+        return image, mask
 
     # SUPERFÍCIE z(x, y): PLANO INCLINADO NA PROFUNDIDADE SORTEADA (FRAÇÃO DA ALTURA DO TILE), COM ONDULAÇÃO SUAVE DE ATÉ 8 VOXELS
     def getSurface(self, depth):
@@ -421,6 +477,14 @@ class SyntheticGenerator:
         wavelet = (1 - 2 * (np.pi * f * t) ** 2) * np.exp(-((np.pi * f * t) ** 2))
         wavelet = self.rotate(wavelet) if any(self.waveletPhase) else wavelet
         return self.output(self.tensor(model) @ self.tensor(ndimage.convolve1d(np.eye(self.nz), wavelet, axis=1)), model)
+
+    # O DADO MIGRADO NÃO RESOLVE A FALHA NA LATERAL COMO O MODELO: O CORTE E OS REFLETORES SAEM BORRADOS EM (x, y); O RUÍDO ENTRA DEPOIS, FINO
+    def applyLateral(self, wave):
+        if not any(self.lateralSigma):
+            return wave
+
+        sigma = np.random.uniform(*self.lateralSigma)
+        return self.output(self.gaussian(self.tensor(wave), (sigma, sigma, 0)), wave)
 
     # FASE DO RICKER GIRADA PELA TRANSFORMADA DE HILBERT: 90° É A QUADRATURA, 180° INVERTE A POLARIDADE
     def rotate(self, wavelet):
@@ -509,3 +573,129 @@ class SyntheticGenerator:
         image, mask = self.get()
         np.save(os.path.join(images, f'img_{index:04d}.npy'), np.transpose(self.applyGain(image, jitter), (0, 2, 1)))
         np.save(os.path.join(masks, f'img_{index:04d}.npy'), np.transpose(mask, (0, 2, 1)))
+
+
+# DESCRITORES DE UM TILE PELAS SEÇÕES (z, lateral): COMPOSIÇÃO, CONTRASTE, PERÍODO, MERGULHO, CONTINUIDADE E RUÍDO FINO; O MESMO CÓDIGO NO TILE REAL E NO SINTÉTICO
+class TileRuler:
+    ALIVE     = 0.0552                  # ENVELOPE RMS DO REFLETOR VIVO NA ESCALA [0, 1] (OTSU DO MARLIM)
+    WATER_TOL = 0.002                   # |x - ÁGUA| QUE AINDA É ÁGUA
+    DEAD_TOL  = 0.02                    # TRAÇO QUE NUNCA SAI DISSO É TRAÇO MORTO
+    SLICES    = (32, 64, 96)            # SEÇÕES INLINE (EIXO 0) E CROSSLINE (EIXO 2) MEDIDAS
+    STEEP     = (40, 50, 60, 70, 80)    # MERGULHOS DE LINEAMENTO TIPO FALHA, EM GRAUS
+    FLAT      = (0, 10, 20)             # MERGULHOS DE LINEAMENTO AO LONGO DA CAMADA
+    LINE      = 31                      # COMPRIMENTO DO NÚCLEO DE LINEAMENTO EM PX
+
+    def __init__(self, water=None):
+        self.water   = water
+        self.kernels = {angle: self.getKernel(angle) for angle in self.STEEP + self.FLAT}
+
+    # DESFOQUE GAUSSIANO 2D COM BORDA REFLETIDA, O MESMO EM TODAS AS MEDIDAS
+    @staticmethod
+    def gauss(img, sigma):
+        return cv2.GaussianBlur(img, (0, 0), sigmaX=sigma, sigmaY=sigma, borderType=cv2.BORDER_REFLECT)
+
+    def get(self, tile):
+        tile  = np.asarray(tile, np.float32)
+        table = pd.DataFrame([self.getSection(tile[i]) for i in self.SLICES] + [self.getSection(tile[:, :, j].T) for j in self.SLICES])
+        return {**table.mean(numeric_only=True).to_dict(), **self.getVolume(tile)}
+
+    # O QUE SÓ FAZ SENTIDO NO VOLUME: CONTRASTE, SATURAÇÃO, TRAÇOS MORTOS E O RUÍDO FINO DA SUB-BANDA HHH DE HAAR
+    def getVolume(self, tile):
+        center = self.water if self.water is not None else float(np.median(tile))
+        a      = tile - center
+        t      = tile[:tile.shape[0] // 2 * 2, :tile.shape[1] // 2 * 2, :tile.shape[2] // 2 * 2]
+        hhh    = sum((-1) ** (i + j + k) * t[i::2, j::2, k::2] for i, j, k in np.ndindex(2, 2, 2)) / np.sqrt(8)
+        rock   = np.abs(a[::2, ::2, ::2]) > self.WATER_TOL
+        live   = np.abs(a) > self.WATER_TOL
+        sd     = float(a[live].std()) if live.any() else 1e-6
+        return {
+            'sigma': float(tile.std()),
+            'sat': float(((tile <= 0.002) | (tile >= 0.998)).mean()),
+            'deadTraces': float((np.abs(a) < self.DEAD_TOL).all(axis=1).mean()),
+            'fine': float(np.median(np.abs(hhh[rock])) / 0.6745 / (sd + 1e-9)) if rock.any() else np.nan
+        }
+
+    def getSection(self, section):
+        a     = section.astype(np.float32) - (self.water if self.water is not None else float(np.median(section)))
+        live  = np.sqrt(self.gauss(a * a, 12)) > self.ALIVE
+        out   = {'water': float((np.abs(a) < self.WATER_TOL).mean()), 'live': float(live.mean())}
+
+        if live.mean() < 0.05:
+            return out
+
+        zs      = a / (float(a[live].std()) + 1e-8)
+        columns = live.mean(0) > 0.5
+        return {**out, **self.getSpectrum(zs, columns), **self.getStructure(zs, live), **self.getContinuity(zs, live, columns), **self.getContrast(a, live)}
+
+    # PERÍODO VERTICAL PELO CENTRÓIDE DO ESPECTRO EM z NAS COLUNAS VIVAS, E A LARGURA RELATIVA DA BANDA
+    def getSpectrum(self, zs, columns):
+        if columns.sum() < 8:
+            return {}
+
+        vert  = zs[:, columns] - zs[:, columns].mean(0)
+        power = (np.abs(np.fft.rfft(vert, axis=0)) ** 2).mean(1)[1:]
+        freqs = np.fft.rfftfreq(vert.shape[0])[1:]
+        mean  = float((freqs * power).sum() / (power.sum() + 1e-12))
+        width = float(np.sqrt(((freqs - mean) ** 2 * power).sum() / (power.sum() + 1e-12)))
+        return {'period': 1.0 / (mean + 1e-12), 'bandwidth': width / (mean + 1e-12)}
+
+    def getStructure(self, zs, live):
+        Jzz, Jxx, Jzx = self.getTensor(zs)
+        trace = (Jzz + Jxx) * live
+        coh   = np.sqrt(np.maximum((Jzz - Jxx) ** 2 + 4 * Jzx ** 2, 0)) / (Jzz + Jxx + 1e-12)
+        dip   = np.abs(np.degrees(0.5 * np.arctan2(2 * Jzx, Jzz - Jxx))).ravel()
+        order = np.argsort(dip)
+        cum   = np.cumsum(trace.ravel()[order]) / (trace.sum() + 1e-12)
+        pick  = lambda q: float(dip[order][min(np.searchsorted(cum, q), cum.size - 1)])
+        return {'coherence': float((coh * trace).sum() / (trace.sum() + 1e-12)), 'dipP50': pick(0.5), 'dipP90': pick(0.9)}
+
+    def getContinuity(self, zs, live, columns):
+        s5, s17 = self.getSemblance(zs, 2), self.getSemblance(zs, 8)
+        disc    = np.clip(1 - s5, 0, 1).astype(np.float32)
+        steep   = np.max([cv2.filter2D(disc, -1, self.kernels[a], borderType=cv2.BORDER_REFLECT) for a in self.STEEP], axis=0)
+        flat    = np.max([cv2.filter2D(disc, -1, self.kernels[a], borderType=cv2.BORDER_REFLECT) for a in self.FLAT], axis=0)
+        sd      = zs.std(0)
+        columns = columns & (sd > 1e-3)    # TRAÇO MORTO CONSTANTE NO MEIO DE TRAÇOS VIVOS (O ENVELOPE σ 12 O MARCA VIVO) DIVIDIA POR ~0
+        col     = zs[:, columns] / sd[None, columns] if columns.sum() > 20 else None
+        return {
+            'disc5': float((s5 < 0.8)[live].mean()),
+            'disc17': float((s17 < 0.8)[live].mean()),
+            'steep90': float(np.percentile(steep[live], 90)),
+            'flat90': float(np.percentile(flat[live], 90)),
+            'lag4': float((col[:, :-4] * col[:, 4:]).mean()) if col is not None else np.nan,
+            'lag16': float((col[:, :-16] * col[:, 16:]).mean()) if col is not None else np.nan
+        }
+
+    def getContrast(self, a, live):
+        vals  = a[live]
+        zs    = (vals - vals.mean()) / (vals.std() + 1e-8)
+        third = a.shape[0] // 3
+        top   = a[:third][live[:third]]
+        base  = a[-third:][live[-third:]]
+        trend = float(np.log((top.std() + 1e-6) / (base.std() + 1e-6))) if top.size > 100 and base.size > 100 else np.nan
+        return {'kurt': float((zs ** 4).mean()), 'trend': trend, 'sigmaLive': float(vals.std())}
+
+    def getTensor(self, zs):
+        smooth = self.gauss(zs, 1.0)
+        gz, gx = cv2.Sobel(smooth, cv2.CV_32F, 0, 1, ksize=3), cv2.Sobel(smooth, cv2.CV_32F, 1, 0, ksize=3)
+        return self.gauss(gz * gz, 4.0), self.gauss(gx * gx, 4.0), self.gauss(gz * gx, 4.0)
+
+    # NÚCLEO DE LINHA DE LINE px NO MERGULHO DADO (0 = HORIZONTAL), NORMALIZADO PARA MÉDIA
+    def getKernel(self, angle):
+        size   = self.LINE + (self.LINE + 1) % 2
+        kernel = np.zeros((size, size), np.float32)
+        c, r   = size // 2, self.LINE / 2
+        dz, dx = np.sin(np.radians(angle)), np.cos(np.radians(angle))
+        cv2.line(kernel, (int(round(c - r * dx)), int(round(c - r * dz))), (int(round(c + r * dx)), int(round(c + r * dz))), 1.0, 1)
+        return kernel / kernel.sum()
+
+    # SEMBLANCE DE 2·half+1 TRAÇOS SEGUINDO O MERGULHO LOCAL, NUMA JANELA DE 9 AMOSTRAS (A MESMA DO Regions/Marlim)
+    def getSemblance(self, section, half, win=4):
+        Jzz, Jxx, Jzx = self.getTensor(section)
+        dip    = np.clip(-np.tan(0.5 * np.arctan2(2 * Jzx, Jzz - Jxx)), -3, 3)
+        zz, xx = np.mgrid[:section.shape[0], :section.shape[1]].astype(np.float32)
+        traces = [cv2.remap(section, xx + k, zz + dip * k, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT) for k in range(-half, half + 1)]
+        window = np.ones((2 * win + 1, 1), np.float32)
+        num    = cv2.filter2D(sum(traces) ** 2, -1, window, borderType=cv2.BORDER_REFLECT)
+        den    = cv2.filter2D(sum(t * t for t in traces) * len(traces), -1, window, borderType=cv2.BORDER_REFLECT)
+        return num / (den + 1e-12)
