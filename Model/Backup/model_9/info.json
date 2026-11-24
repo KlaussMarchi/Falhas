@@ -1,0 +1,75 @@
+{
+    "trainer": {
+        "path": "model_9",
+        "loss": "dice_focal",
+        "scheduler": "plateau",
+        "epochs": 200,
+        "batch_size": 1,
+        "ema": false,
+        "trial": 0,
+        "val_iou": 0.7370989322662354,
+        "test_iou": 0.7440710067749023
+    },
+    "processing": {
+        "network": "nru_net",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "scaling": "normalize",
+        "lr": 0.001,
+        "loss": "dice_focal",
+        "batch_size": 1,
+        "scheduler": "plateau",
+        "dropout": 0.1,
+        "num_filters": 32,
+        "ema": false,
+        "amp": true,
+        "epochs": 200,
+        "patience": 20,
+        "n_trials": 1,
+        "augmentations": null,
+        "trial": 0
+    },
+    "division": {
+        "val_size": 0.047619047619047616,
+        "test_size": 0.045454545454545456,
+        "n_images": {
+            "total": 220,
+            "train": 200,
+            "val": 10,
+            "test": 10
+        }
+    },
+    "model": {
+        "network": "nru_net",
+        "img_size": [
+            128,
+            128,
+            128
+        ],
+        "classes": 1,
+        "channels": 1,
+        "dropout": 0.1,
+        "num_filters": 32,
+        "lr": 0.001
+    },
+    "iou": {
+        "mean": 0.7440710067749023
+    },
+    "test": {
+        "dataset_74": {
+            "tiles": 10,
+            "scaling": "normalize",
+            "accuracy": 0.9774951457977294,
+            "precision": 0.8482786204236253,
+            "recall": 0.8583093927697308,
+            "iou": 0.7440813931798562,
+            "f1": 0.8532645277789782,
+            "auc": 0.9913740798595181,
+            "tp": 1372223,
+            "fp": 245433,
+            "fn": 226528,
+            "tn": 19127336,
+            "timestamp": "24/11/26 01:44:46"
+        }
+    }
+}

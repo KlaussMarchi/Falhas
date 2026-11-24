@@ -6,7 +6,7 @@ from monai.inferers import sliding_window_inference
 
 # AUMENTAÇÃO DINÂMICA DO TREINO NA RECEITA DA RESACEUNET (ZU ET AL. 2024, data/build_data.py DE github.com/39c5bb-miku/ResACEUnet) MAIS O ZOOM DA ESCALA DO MARLIM
 class Transforms:
-    OPTIONS = ('zoom', 'contrast', 'rotate90', 'flip', 'rotate', 'smooth', 'noise', 'crop')
+    OPTIONS = ('zoom', 'contrast', 'gain', 'rotate90', 'flip', 'rotate', 'smooth', 'noise', 'crop')
 
     def __init__(self, options=None, seed=42, batch=1):
         self.options = dict(options or {})
@@ -55,6 +55,13 @@ class Transforms:
         gamma = float(rng.uniform(*params['gamma']))
         low, span = img.min(), img.max() - img.min()
         return ((img - low) / (span + 1e-7)) ** gamma * span + low, mask
+
+    # GANHO: O DESVIO EM TORNO DA MÉDIA DO TILE MULTIPLICADO POR UM FATOR SORTEADO EM factor. O BLOCO CHEGA À REDE PELO p01/p99 COM DESVIO
+    # MENOR QUE O DO TREINO (CAUDAS MAIS PESADAS: MARLIM 0,11-0,15, F3 0,18, dataset_wu_n_p 0,19), E A REDE SEM NORMALIZAÇÃO SÓ
+    # RESPONDE BEM AO CONTRASTE QUE VIU
+    def gain(self, img, mask, rng, params):
+        mean = img.mean()
+        return mean + float(rng.uniform(*params['factor'])) * (img - mean), mask
 
     # GIRO DE 90, 180 OU 270 GRAUS NO PLANO DOS EIXOS (RandRotate90d); É UMA VIEW, NÃO COPIA O TILE
     def rotate90(self, img, mask, rng, params):

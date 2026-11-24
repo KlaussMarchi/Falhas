@@ -1,0 +1,73 @@
+{
+    "trainer": {
+        "path": "model_2",
+        "loss": "dice_focal",
+        "scheduler": "plateau",
+        "epochs": 200,
+        "batch_size": 2,
+        "ema": false,
+        "trial": 0,
+        "val_iou": 0.6885046362876892,
+        "test_iou": 0.6981414556503296
+    },
+    "processing": {
+        "network": "resaceunet_grva",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "scaling": "normalize",
+        "lr": 0.001,
+        "loss": "dice_focal",
+        "batch_size": 2,
+        "scheduler": "plateau",
+        "dropout": 0.1,
+        "num_filters": 16,
+        "ema": false,
+        "epochs": 200,
+        "patience": 20,
+        "n_trials": 1,
+        "trial": 0
+    },
+    "division": {
+        "val_size": 0.047619047619047616,
+        "test_size": 0.045454545454545456,
+        "n_images": {
+            "total": 220,
+            "train": 200,
+            "val": 10,
+            "test": 10
+        }
+    },
+    "model": {
+        "network": "resaceunet_grva",
+        "img_size": [
+            128,
+            128,
+            128
+        ],
+        "classes": 1,
+        "channels": 1,
+        "dropout": 0.1,
+        "num_filters": 16,
+        "lr": 0.001
+    },
+    "iou": {
+        "mean": 0.6981414556503296
+    },
+    "test": {
+        "dataset_74": {
+            "tiles": 10,
+            "scaling": "normalize",
+            "accuracy": 0.9733587741851807,
+            "precision": 0.8367263553633706,
+            "recall": 0.8082528173555482,
+            "iou": 0.6981433917084751,
+            "f1": 0.8222431569881553,
+            "auc": 0.980216917616526,
+            "tp": 1292195,
+            "fp": 252151,
+            "fn": 306556,
+            "tn": 19120618,
+            "timestamp": "23/11/26 16:01:20"
+        }
+    }
+}

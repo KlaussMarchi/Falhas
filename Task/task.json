@@ -1,7 +1,57 @@
 [
     {
         "network": "dbrnet",
-        "dataset": "marlim_opt",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "scaling": "normalize",
+        "lr": 0.001,
+        "loss": "dice_focal",
+        "batch_size": 1,
+        "scheduler": "plateau",
+        "dropout": 0.1,
+        "num_filters": 16,
+        "ema": false,
+        "amp": true,
+        "epochs": 200,
+        "patience": 20,
+        "n_trials": 1,
+        "augmentations": null
+    },
+    {
+        "network": "dbrnet",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "scaling": "normalize",
+        "lr": 0.0001,
+        "loss": "bce_balanced",
+        "batch_size": 1,
+        "scheduler": "constant",
+        "dropout": 0.1,
+        "num_filters": 16,
+        "ema": false,
+        "amp": true,
+        "epochs": 70,
+        "patience": 70,
+        "n_trials": 1,
+        "augmentations": {
+            "flip": {
+                "axes": [
+                    1
+                ],
+                "prob": 0.5
+            },
+            "gain": {
+                "factor": [
+                    0.5,
+                    1.0
+                ]
+            },
+            "n_aug": 2
+        }
+    },
+    {
+        "network": "macnn",
+        "dataset": "dataset_74",
         "img_size": null,
         "scaling": "normalize",
         "lr": 0.001,
@@ -10,8 +60,65 @@
         "scheduler": "plateau",
         "dropout": 0.1,
         "num_filters": 32,
-        "ema": true,
-        "epochs": 100,
-        "n_trials": 1
+        "ema": false,
+        "amp": true,
+        "epochs": 200,
+        "patience": 20,
+        "n_trials": 1,
+        "augmentations": null
+    },
+    {
+        "network": "nru_net",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "scaling": "normalize",
+        "lr": 0.001,
+        "loss": "dice_focal",
+        "batch_size": 1,
+        "scheduler": "plateau",
+        "dropout": 0.1,
+        "num_filters": 32,
+        "ema": false,
+        "amp": true,
+        "epochs": 200,
+        "patience": 20,
+        "n_trials": 1,
+        "augmentations": null
+    },
+    {
+        "network": "fault_edge_former",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "scaling": "normalize",
+        "lr": 0.001,
+        "loss": "dice_focal",
+        "batch_size": 1,
+        "scheduler": "plateau",
+        "dropout": 0.1,
+        "num_filters": 9,
+        "ema": false,
+        "amp": true,
+        "epochs": 200,
+        "patience": 20,
+        "n_trials": 1,
+        "augmentations": null
+    },
+    {
+        "network": "resaceunet_grva",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "scaling": "normalize",
+        "lr": 0.001,
+        "loss": "dice_focal",
+        "batch_size": 1,
+        "scheduler": "plateau",
+        "dropout": 0.1,
+        "num_filters": 16,
+        "ema": false,
+        "amp": true,
+        "epochs": 200,
+        "patience": 20,
+        "n_trials": 1,
+        "augmentations": null
     }
 ]

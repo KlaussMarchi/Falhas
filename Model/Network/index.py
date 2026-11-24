@@ -15,17 +15,19 @@ from .types.NRUNet import NRUNet
 from .types.MACNN  import MACNN
 from .types.FaultEdgeFormer import FaultEdgeFormer
 from .types.NRASANet import NRASANet
+from .types.UNetWu import UNetWu
 from .types.Ensemble import Ensemble
 
 
 class ModelNetwork:
     selected = None
 
-    def __init__(self, network, img_size, classes=1, channels=1, lr=1e-4, dropout=0.1, num_filters=16, members=None, power=1.0, flips=None):
+    def __init__(self, network, img_size, classes=1, channels=1, lr=1e-4, dropout=0.1, num_filters=16, members=None, power=1.0, flips=None, scales=None):
         self.network = network
         self.members = members
         self.power   = power
         self.flips   = flips
+        self.scales  = scales
         self.img_size = img_size
         self.classes  = classes
         self.multiclass  = (self.classes > 1)
@@ -90,9 +92,18 @@ class ModelNetwork:
         if self.network == 'nra_sanet':
             return NRASANet(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, dropout_rate=self.dropout, input_shape=self.img_size)
 
+        # UNET DO FAULTSEG3D, SEM NORMALIZAÇÃO NEM DROPOUT (WU ET AL. 2019, fault_seg (wu).pdf; unet3.py EM github.com/xinwucwp/faultSeg)
+        if self.network == 'unet_wu':
+            return UNetWu(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters)
+
+        # A MESMA UNET COM A ENTRADA [0, 1] DO dataset_wu_n_p (E DOS BLOCOS) DEVOLVIDA AO z-SCORE EM QUE O WU TREINOU: O dataset_wu_n_p É
+        # p = 0,197027 z + 0,495343 (CORTE NO p01/p99 DO CONJUNTO, -2,514 E 2,561 DESVIOS), E SEM NORMALIZAÇÃO A REDE APRENDE NA ESCALA QUE RECEBE
+        if self.network == 'unet_wu_z':
+            return UNetWu(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, center=0.495343, scale=0.197027)
+
         # MÉDIA DE REDES DE SEMENTES DIFERENTES: members É A LISTA DOS ARGUMENTOS DE CADA UMA, NO FORMATO DO model DO info.json
         if self.network == 'ensemble':
-            return Ensemble([ModelNetwork.build(member) for member in self.members], self.power, self.flips)
+            return Ensemble([ModelNetwork.build(member) for member in self.members], self.power, self.flips, self.scales)
 
         return None
 
@@ -102,5 +113,5 @@ class ModelNetwork:
         network = ModelNetwork.__new__(ModelNetwork)
         network.network, network.img_size, network.classes = options['network'], options.get('img_size'), options.get('classes', 1)
         network.channels, network.dropout, network.num_filters = options.get('channels', 1), options.get('dropout', 0.1), options.get('num_filters', 16)
-        network.members, network.power, network.flips = options.get('members'), options.get('power', 1.0), options.get('flips')
+        network.members, network.power, network.flips, network.scales = options.get('members'), options.get('power', 1.0), options.get('flips'), options.get('scales')
         return network.get()

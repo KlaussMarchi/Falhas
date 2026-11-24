@@ -1,0 +1,88 @@
+{
+    "trainer": {
+        "path": "model_5",
+        "loss": "bce_balanced",
+        "scheduler": "constant",
+        "epochs": 70,
+        "batch_size": 2,
+        "ema": false,
+        "trial": 0,
+        "val_iou": 0.6372373700141907,
+        "test_iou": 0.6120550632476807
+    },
+    "processing": {
+        "network": "resaceunet_grva",
+        "dataset": "dataset_wu",
+        "img_size": null,
+        "scaling": "percentile",
+        "lr": 0.0001,
+        "loss": "bce_balanced",
+        "batch_size": 2,
+        "scheduler": "constant",
+        "dropout": 0.1,
+        "num_filters": 16,
+        "ema": false,
+        "epochs": 70,
+        "patience": 70,
+        "n_trials": 1,
+        "trial": 0,
+        "augmentations": {
+            "flip": {
+                "axes": [
+                    1
+                ],
+                "prob": 0.5
+            },
+            "gain": {
+                "factor": [
+                    0.5,
+                    1.0
+                ]
+            },
+            "n_aug": 2
+        }
+    },
+    "division": {
+        "val_size": 0.047619047619047616,
+        "test_size": 0.045454545454545456,
+        "n_images": {
+            "total": 220,
+            "train": 200,
+            "val": 10,
+            "test": 10
+        }
+    },
+    "model": {
+        "network": "resaceunet_grva",
+        "img_size": [
+            128,
+            128,
+            128
+        ],
+        "classes": 1,
+        "channels": 1,
+        "dropout": 0.1,
+        "num_filters": 16,
+        "lr": 0.0001
+    },
+    "iou": {
+        "mean": 0.6120550632476807
+    },
+    "test": {
+        "dataset_wu": {
+            "tiles": 10,
+            "scaling": "percentile",
+            "accuracy": 0.9593106269836426,
+            "precision": 0.6315407273346496,
+            "recall": 0.952003671517945,
+            "iou": 0.6120530611836655,
+            "f1": 0.7593460487389412,
+            "auc": 0.9902585667876384,
+            "tp": 1346256,
+            "fp": 785445,
+            "fn": 67873,
+            "tn": 18771946,
+            "timestamp": "23/11/26 15:45:25"
+        }
+    }
+}

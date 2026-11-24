@@ -1,0 +1,75 @@
+{
+    "trainer": {
+        "path": "model_10",
+        "loss": "dice_focal",
+        "scheduler": "plateau",
+        "epochs": 200,
+        "batch_size": 1,
+        "ema": false,
+        "trial": 0,
+        "val_iou": 0.6304397583007812,
+        "test_iou": 0.6368220448493958
+    },
+    "processing": {
+        "network": "fault_edge_former",
+        "dataset": "dataset_74",
+        "img_size": null,
+        "scaling": "normalize",
+        "lr": 0.001,
+        "loss": "dice_focal",
+        "batch_size": 1,
+        "scheduler": "plateau",
+        "dropout": 0.1,
+        "num_filters": 9,
+        "ema": false,
+        "amp": true,
+        "epochs": 200,
+        "patience": 20,
+        "n_trials": 1,
+        "augmentations": null,
+        "trial": 0
+    },
+    "division": {
+        "val_size": 0.047619047619047616,
+        "test_size": 0.045454545454545456,
+        "n_images": {
+            "total": 220,
+            "train": 200,
+            "val": 10,
+            "test": 10
+        }
+    },
+    "model": {
+        "network": "fault_edge_former",
+        "img_size": [
+            128,
+            128,
+            128
+        ],
+        "classes": 1,
+        "channels": 1,
+        "dropout": 0.1,
+        "num_filters": 9,
+        "lr": 0.001
+    },
+    "iou": {
+        "mean": 0.6368220448493958
+    },
+    "test": {
+        "dataset_74": {
+            "tiles": 10,
+            "scaling": "normalize",
+            "accuracy": 0.9656928062438965,
+            "precision": 0.7674400213641288,
+            "recall": 0.789101617450122,
+            "iou": 0.6368220707089318,
+            "f1": 0.7781200927149213,
+            "auc": 0.9731694918457112,
+            "tp": 1261577,
+            "fp": 382300,
+            "fn": 337174,
+            "tn": 18990469,
+            "timestamp": "24/11/26 04:55:04"
+        }
+    }
+}

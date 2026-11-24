@@ -20,7 +20,9 @@ conda activate torch-gpu           # ou: conda run -n torch-gpu python ...
   `Dataset/<dataset>/Format.ipynb` (pulado quando o `DataBase.csv` já existe, `img_size` é `null` e a coluna
   `scaling` dele bate com a da rodada) e depois
   `Model/1 - Model.ipynb` uma vez por trial (`n_trials`; o trial vai no `info.json` e a semente é `42 + trial`), via
-  papermill, com a saída em `Task/logs/<nome>_out.ipynb`. O kernel é `python3`, que resolve para o do `torch-gpu`.
+  papermill, com a saída em `Task/logs/<nome>_out.ipynb`. No fim da rodada, roda o `Model/3 - Predict.ipynb` só nos
+  modelos que ela gravou (uma cópia com a lista trocada por parâmetro): a matriz de confusão, a acurácia, a ROC e as outras
+  métricas de teste vão para o `test.<dataset>` do `info.json` de cada um. O kernel é `python3`, que resolve para o do `torch-gpu`.
 - **Um notebook só:** abra no Jupyter/VS Code com o kernel `torch-gpu`, ou
   `papermill <nb> /tmp/out.ipynb -k python3 --cwd <pasta do nb>` — todo caminho dentro de um notebook é relativo à
   **pasta dele**, então o `cwd` errado quebra tudo.
@@ -30,8 +32,9 @@ conda activate torch-gpu           # ou: conda run -n torch-gpu python ...
 - `.gitignore` exclui `*.npy`, `*.pth`, `*.dat`, imagens, `*.zip` e `Articles/`: datasets, blocos reais, pesos e figuras
   são locais. Um clone limpo precisa regerar os dados pelo `Synthetic/Analysis.ipynb` (seção "APLICANDO DATASET") +
   `Format.ipynb`.
-- Disco: os patches do Marlim ocupam 29 GB e os do Iracema 302 GB. Predizer um modelo no Marlim grava ~7,3 GB de
-  máscaras por patch, mais 0,9 GB do `predicted.npy`; o Iracema inteiro (~308 GB) não cabe. Confira o espaço antes.
+- Disco: os patches do Marlim ocupam 29 GB e os do Iracema 302 GB. Predizer um modelo no Marlim grava 0,9 GB do
+  `predicted.npy` por patch, mais ~7,3 GB de máscaras com `SAVE_TILES = True`; as máscaras do Iracema inteiro (~308 GB)
+  não cabem. Confira o espaço antes.
 - Rodadas longas: log fora do `/tmp`, que é apagado no boot. Para encerrar um processo use o PID explícito, porque
   `pkill -f` e `pgrep -f` casam com a própria linha de comando.
 
@@ -63,7 +66,8 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
 2. **`Dataset/<nome>/Format.ipynb`.** Lê `original/*/images|masks`, escalona e grava `images/`, `masks/` e
    o `DataBase.csv` (`id`, estatísticas, `shape`, `img_path`/`mask_path` absolutos, `scaling`). Também reescreve
    `Task/info.json` com o nome do dataset. O que se repete entre os `Format` mora no `Dataset/index.py`: `getFiles`,
-   `setFolder`, `showTile`, `TilesBuilder` e a `Normalization`, escolhida pelo `scaling` do `info.json`:
+   `setFolder`, `showTile`, `getDataInfo` (a tabela da célula logo antes do fim do `Format`: formato, shape, mínimo, máximo,
+   média e desvio do `original/` e do `images/`), `TilesBuilder` e a `Normalization`, escolhida pelo `scaling` do `info.json`:
    `'normalize'` (o padrão sem a chave: **min-max de cada volume** para `[0,1]`, decisão de 06/10/2026), `'percentile'`
    (corte no p01/p99 do conjunto inteiro, reescalado para `[0,1]`), `'standardize'` (média 0 e desvio 1 por volume, o
    passo do artigo da ResACEUnet) ou `null` (volume cru). A escolha fica na coluna `scaling` do `DataBase.csv`
@@ -83,7 +87,8 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
 4. **`Model/1 - Model.ipynb`** — o treino. Split fixo (`random_state=42`) com ~4,5% para validação e ~4,5% para teste
    (220 tiles dão 200/10/10), `CustomDataset`, `Trainer` (clip de gradiente,
    `plateau` = `ReduceLROnPlateau` por época, `cosine` = aquecimento 1e-6 → `lr` em 10 épocas e cosseno até 1e-7 a cada
-   batch (a agenda da ResACEUnet), `ModelEMA` do `Model/EMA/` quando `ema` é true, progresso
+   batch (a agenda da ResACEUnet), `constant` (ou outro nome) = `lr` fixo, como o Adam 1e-4 do FaultSeg3D, `ModelEMA` do
+   `Model/EMA/` quando `ema` é true, progresso
    corrente em `Model/progress.json`). Salva `Model/Backup/model_N/` com `info.json`, `model.pth`
    (`{'model', 'optimizer', 'timestamp', 'history'}`), `train.png` e `predictions/`; `N` é o maior `model_N` + 1. No
    `info.json` salvo, `processing` é o `Task/info.json` exatamente como veio (copiar e colar reproduz a rodada),
@@ -100,15 +105,21 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
    própria pasta (`_<dataset>` no nome quando testado fora do dataset do treino), e a `auc` entra no `test.<dataset>` do
    `info.json`.
 6. **`Blocks/Marlim/Analysis.ipynb`** — o bloco real com interpretação. Predição e análise ficam num notebook só.
+   - **Código comum:** os três notebooks de `Blocks/` importam do `Blocks/index.py` o `TileGrid` (grade e montagem pelos
+     núcleos), a `SlidingWindow`, o `BlockPredictor`, o `FaultStickExtractor`, a `BlockSection` (painéis; a camada
+     `expert` é a anotação), o `getBlockInfo` (shape, tiles e min/máx/média/desvio de uma amostra), o `modelSummary` e o
+     `saveReport`. Cada notebook tem só a configuração e o fluxo; o `FaultComparer` do Marlim estende a `BlockSection`.
    - **Configuração:** `BASE_PATH` (a pasta dos `model_N/`: `../../Model/Backup` ou `../../Documents/Backups/<campanha>`),
-     `MODELS`, `PATCH_IDS`, `OVERLAP`, `WINDOW` e os botões do extrator (`STICK_TOL 0.80`, `STICK_MIN 140`,
-     `STICK_GAP 59`, calibrados no patch 1200).
+     `MODELS`, `PATCH_IDS`, `SAVE_TILES`, `SAVE_PRED`, `SKIP_DONE`, `OVERLAP`, `WINDOW` e os botões do extrator
+     (`STICK_TOL 0.80`, `STICK_MIN 140`, `STICK_GAP 59`, calibrados no patch 1200).
    - **Entrada:** `files/patches/<id>/tiles/*.dat`, float32 cru em `[0,1]` (p01/p99 do bloco), eixos
      `(inline, z, xline)`, shape no `patch_metadata.json` da mesma pasta. Os 128 inlines de cada `.dat` são reais; o
      `original_shape` de 64 é só o miolo.
    - **Predição:** roda a `SlidingWindow` **na janela em que a rede foi treinada**, com peso de Hanning na emenda, e
-     grava `masks/` + `predict.json` + `predicted.npy` em `<BASE_PATH>/<modelo>/marlim/patch_<id>`. Só prediz modelo com
-     `scaling` `'normalize'` ou `'percentile'`.
+     grava `predict.json` em `<BASE_PATH>/<modelo>/marlim/patch_<id>`, o `predicted.npy` com `SAVE_PRED` (padrão `True`)
+     e as `masks/` (um `.dat` por tile) só com `SAVE_TILES` (padrão `False`). Com `SKIP_DONE`, um `predicted.npy` pronto
+     dispensa a predição e os `.dat` inteiros de `masks/` são relidos. Só prediz modelo com `scaling` `'normalize'` ou
+     `'percentile'`.
    - **Análise:** extrai sticks (`FaultStickExtractor`) e compara com o especialista (`FaultComparer`, contra
      `files/patches/<id>/<id>_interpretado.png`). A inline anotada não é a central; o índice dela está em
      `files/cache/inline_index.json`.
@@ -116,12 +127,14 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
    - A anotação é parcial (só as falhas principais): a precisão é limite inferior e o F1 premia marcar pouco.
 7. **`Blocks/Iracema/Analysis.ipynb`** — o mesmo notebook para o Iracema, que não tem interpretação: só figuras e o
    resumo da inline. Os tiles ficam soltos em `files/patches/`, com um `files/patch_metadata.json` (2751 × 2000 × 1754,
-   38 528 tiles). Com `FULL_PREDICT = False` ele prediz só os tiles que cobrem a `INLINE`.
+   38 528 tiles; só os 896 da inline 1375 estão em disco). Com `FULL_PREDICT = False` ele prediz só os tiles que cobrem
+   a `INLINE`; `SAVE_TILES` e `SAVE_PRED` (padrão `False`) gravam as `masks/` e o `predicted.npy` (~38,6 GB).
    - **`Blocks/F3/Analysis.ipynb`** é a mesma cópia para o F3 (Mar do Norte, Holanda), também sem interpretação: 651 × 462 ×
      951 em 1320 tiles soltos em `files/patches/` (mesmo corte e mesma escala p01/p99 em `[0,1]`; o SEG-Y original fica em
-     `~/Projects/falhas_f3`). Prediz o bloco inteiro por padrão (`FULL_PREDICT`: ~11 GB de `.dat` em `masks/` por modelo,
-     um por tile) e grava em `<BASE_PATH>/<modelo>/f3` e `<BASE_PATH>/outputs/f3`. O `predicted.npy` (1,1 GB) só sai com
-     `SAVE_PRED = True`; o padrão é `False`.
+     `~/Projects/falhas_f3`). Prediz o bloco inteiro por padrão (`FULL_PREDICT`) e grava em `<BASE_PATH>/<modelo>/f3` e
+     `<BASE_PATH>/outputs/f3`. As `masks/` (~11 GB, um `.dat` por tile) só saem com `SAVE_TILES = True` e o
+     `predicted.npy` (1,1 GB) só com `SAVE_PRED = True`; os dois padrões são `False`. F3 e Iracema têm o mesmo código e
+     diferem só nas constantes da configuração (`BLOCK`, `BASE_PATH`, `INLINE`, ...).
 8. **`Synthetic/Regions/Marlim/Analysis.ipynb`** separa o bloco real em tiles `calm`/`faulted`/`dead` por conteúdo
    (semblance, envelope RMS, distância da falha anotada) → `files/<região>/*.npy` + `files/DataBase.csv`, com
    `img_path` absoluto. Os patches continuam sendo lidos de `Blocks/Marlim/files/patches`.
@@ -157,18 +170,22 @@ Os estágios trocam **arquivos**, nunca variáveis, e cada um lê o que o anteri
   MAIÚSCULA citando a origem; o nome usado ali é o que vai em `Task/info.json`. Hoje: `unet_3d`, `dbrnet`,
   `segresnet`, `resaceunet_grva`, `resaceunet_wu` (a `ResACEUNet2` atual do repositório dos autores),
   `resaceunet_zu` (a do artigo, 3 estágios, do primeiro commit), `macnn`, `fault_seg_net`, `nru_net`, `fault_edge_former`,
-  `nra_sanet`. A `dbrnet` é a antiga `unet3d_v2`: um `info.json` com o nome velho só carrega trocando o nome.
+  `nra_sanet`, `unet_wu` (a UNet do FaultSeg3D, sem normalização, igual ao `fseg-70` do Wu) e `unet_wu_z` (a mesma com a
+  entrada `[0, 1]` do percentil levada de volta à escala z). A `dbrnet` é a antiga `unet3d_v2`: um `info.json` com o nome
+  velho só carrega trocando o nome.
   O `ensemble` (`types/Ensemble.py`) não treina: é a média das probabilidades de várias redes prontas (`members` no
   `model` do `info.json`), elevada a `power` (o ponto de operação) e com espelhos laterais opcionais (`flips`). Roda nos
   notebooks dos blocos como qualquer `model_N`; quem monta é o `checks/make_ensemble.py` da campanha.
 - **Nova loss:** classe em `Model/Losses/index.py` e entrada em `Losses.options` (`cross_entropy`, `dice_focal`,
-  `dice_ce`, `focal`, `smooth_dice`, `compound`, `tversky`, `dice_focal_cldice`). Toda loss força `float32` fora do autocast. No MONAI 1.5.2 o termo
+  `dice_ce`, `focal`, `smooth_dice`, `compound`, `tversky`, `dice_focal_cldice`, `bce_balanced` — a BCE balanceada do
+  FaultSeg3D). Toda loss força `float32` fora do autocast. No MONAI 1.5.2 o termo
   focal do `DiceFocalLoss` é sempre sigmoide, mesmo no caso multiclasse — considere isso antes de comparar campanhas
   `dice_focal`.
 - **Aumentação:** só pelo `augmentations` do `info.json` (`null`/ausente = tiles do `Format` como estão, bit a bit igual
   ao pipeline sem ela). `Model/Transforms/index.py` reproduz o `build_data.py` da ResACEUnet (gamma, rot90, flip,
   rotação, suavização, ruído, recorte falha/fundo) mais o `zoom` isotrópico (fator ≥ 1, para cobrir o período de 17–25 px
-  das falhas do Marlim), sorteado no `DataLoader` com semente `(42 + trial, época, índice)`,
+  das falhas do Marlim) e o `gain` (o desvio do tile multiplicado por um fator sorteado: a rede sem normalização passa a
+  aceitar o contraste menor com que os blocos chegam pelo p01/p99), sorteado no `DataLoader` com semente `(42 + trial, época, índice)`,
   na ordem do JSON e só no treino; `n_aug` (padrão 1, como nos autores) é quantas variações de cada tile entram por
   época. Os eixos do config são os nossos `(x, z, y)`: giros e flips em `[0, 2]`. Com `crop`, a
   rede é montada na janela e o `Trainer`/`3 - Predict` predizem o tile inteiro por `Transforms.infer` (janela deslizante).

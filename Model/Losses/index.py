@@ -86,6 +86,28 @@ class CrossEntropyLoss(nn.Module):
 
             return self._loss(logits, target.long())
 
+# BCE BALANCEADA DO FAULTSEG3D (WU ET AL., 2019, EQ. 4; cross_entropy_balanced DE unet3.py EM github.com/xinwucwp/faultSeg):
+# beta É A FRAÇÃO DE VOXELS SEM FALHA NO LOTE, A FALHA PESA beta/(1 - beta) E O CUSTO TODO SAI MULTIPLICADO POR 1 - beta. O
+# LOGIT É CORTADO EM ±16,118 (O CLIP DE 1e-7 QUE O KERAS FAZ NA PROBABILIDADE) E LOTE SEM FALHA NÃO CONTA (O tf.where DO ORIGINAL)
+class BalancedBCELoss(nn.Module):
+    LIMIT = 16.118
+
+    def __init__(self, multiclass=False):
+        super().__init__()
+        self.multiclass = multiclass
+
+    def forward(self, logits, target):
+        with torch.amp.autocast('cuda', enabled=False):
+            logits = logits.float().clamp(-self.LIMIT, self.LIMIT)
+            target = target.float().view_as(logits)
+
+            if target.sum() == 0:
+                return logits.sum() * 0
+
+            beta = 1 - target.mean()
+            cost = F.binary_cross_entropy_with_logits(logits, target, pos_weight=beta / (1 - beta), reduction='none')
+            return (cost * (1 - beta)).mean()
+
 # DICE SUAVIZADO DO MACNN (GAO ET AL., 2022, EQ. 7): L = 1 - (2*sum(p*g) + 1) / (sum(p) + sum(g) + 1).
 # A soma e global sobre o lote inteiro, como no artigo, e o suavizador e 1 (nao 1e-5)
 class SmoothDiceLoss(nn.Module):
@@ -215,6 +237,7 @@ class Losses:
         'compound': CompoundLoss,
         'tversky': TverskyLoss,
         'dice_focal_cldice': DiceFocalClDiceLoss,
+        'bce_balanced': BalancedBCELoss,
     }
 
     def __new__(cls, name, multiclass=False):

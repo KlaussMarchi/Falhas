@@ -46,6 +46,24 @@ def showTile(img=None, mask=None, save=None):
     plt.show()
 
 
+# A ESCALA DE UM CONJUNTO DE VOLUMES DO MESMO TAMANHO: EXTENSÃO E dtype DO ARQUIVO LIDO, SHAPE E MÍNIMO, MÁXIMO, MÉDIA E DESVIO DE TODOS OS VOXELS JUNTOS
+def getDataInfo(paths, load, name):
+    first = load(paths[0])
+    stats = np.array([[img.min(), img.max(), img.mean(), np.square(img).mean()] for img in (load(path).astype(np.float64) for path in paths)])
+    mean  = stats[:, 2].mean()
+
+    info = {
+        'arquivos': len(paths),
+        'formato': f'{os.path.splitext(paths[0])[1]} {first.dtype}',
+        'shape': first.shape,
+        'min': stats[:, 0].min(),
+        'max': stats[:, 1].max(),
+        'media': mean,
+        'desvio': np.sqrt(stats[:, 3].mean() - mean ** 2)
+    }
+    return pd.DataFrame([info], index=[name])
+
+
 # ESCALONAMENTO DOS VOLUMES NO FORMAT, ESCOLHIDO PELO scaling DO info.json E GRAVADO NA COLUNA scaling DO DataBase.csv
 class Normalization:
     OPTIONS = ('normalize', 'percentile', 'standardize', None)
