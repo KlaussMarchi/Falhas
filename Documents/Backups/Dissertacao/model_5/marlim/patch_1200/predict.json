@@ -1,6 +1,7 @@
 {
     "model": "model_5",
-    "patch": "1200",
+    "block": "patch_1200",
+    "inline": null,
     "tiles": 910,
     "tile_shape": [
         128,

@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+:root { --bg: #f5f6f8; --panel: #ffffff; --text: #1d2330; --muted: #5d6676; --line: #d9dde4; --accent: #c62828; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #14171c; --panel: #1d2128; --text: #e7e9ee; --muted: #9aa3b2; --line: #2e333c; --accent: #ef5350; } }
+:root[data-theme="dark"] { --bg: #14171c; --panel: #1d2128; --text: #e7e9ee; --muted: #9aa3b2; --line: #2e333c; --accent: #ef5350; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { display: grid; grid-template-columns: 380px 1fr; height: 100vh; }
+aside { background: var(--panel); border-right: 1px solid var(--line); padding: 14px 16px; overflow-y: auto; }
+h1 { font-size: 16px; margin: 0 0 4px; }
+.sub { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 12px; padding: 8px 10px 10px; }
+legend { color: var(--muted); font-size: 12px; padding: 0 4px; }
+label { display: block; margin: 6px 0 2px; font-size: 13px; }
+label.inline { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+input[type=range] { width: 100%; }
+select { width: 100%; padding: 4px; font-size: 12px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; }
+.val { float: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+td { padding: 3px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+td:first-child { color: var(--muted); padding-right: 8px; white-space: nowrap; }
+#stage { position: relative; background: #000; }
+#stage canvas { display: block; }
+.tag { position: absolute; top: 8px; max-width: calc(50% - 16px); padding: 5px 10px; background: rgba(0,0,0,.66); color: #fff; font-size: 12px; line-height: 1.4; border-radius: 6px; pointer-events: none; border-left: 3px solid var(--side, #e61919); }
+.tag b { font-size: 13px; } .tag span { display: block; color: #d8d8d8; }
+body.embed .ext { display: none !important; } body.embed .wrap { grid-template-columns: 250px 1fr; } body.embed #title, body.embed #subtitle { display: none; }
+#colorbar { position: absolute; right: 12px; bottom: 12px; width: 220px; color: #fff; font-size: 11px; background: rgba(0,0,0,.55); padding: 6px 8px; border-radius: 6px; }
+#colorbar .bar { height: 10px; border-radius: 2px; margin: 4px 0 2px; }
+#colorbar .ticks { display: flex; justify-content: space-between; }
+#loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #ddd; font-size: 15px; text-align: center; padding: 20px; }
+#warn { color: var(--accent); font-size: 12px; margin: 4px 0; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; grid-template-rows: auto 70vh; height: auto; } aside { border-right: 0; border-bottom: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside>
+    <h1 id="title"></h1>
+    <div class="sub" id="subtitle"></div>
+    <fieldset id="layerBox" class="ext">
+      <legend>Rede</legend>
+      <label>Visualizar <select id="layerA"></select></label>
+      <label id="layerBLabel">Comparar com <select id="layerB"></select></label>
+    </fieldset>
+    <fieldset>
+      <legend>Exibição</legend>
+      <div class="ext"><label>Limiar (threshold) <span class="val" id="thrVal"></span></label>
+      <input type="range" id="thr" min="0.05" max="0.95" step="0.01" value="0.5"></div>
+      <div class="sub" id="fraction" style="margin:2px 0 6px"></div>
+      <div class="ext"><label class="inline"><input type="radio" name="mode" value="seismic" checked> sísmica + predição</label>
+      <label class="inline"><input type="radio" name="mode" value="mask"> só a predição (fundo preto)</label></div>
+      <div id="warn"></div>
+      <div class="ext"><label class="inline" id="budgetLabel"><input type="checkbox" id="budget"> orçamento igual: o lado B marca a mesma fração do volume que o A</label>
+      <label class="inline"><input type="checkbox" id="jet"> colorir pela probabilidade (escala jet da figura do Wu)</label></div>
+      <label class="inline"><input type="checkbox" id="above" checked> cortar o cubo na fatia de tempo (como a figura do Wu)</label>
+      <label class="inline ext"><input type="checkbox" id="points"> falhas em 3D (voxels acima do limiar)</label>
+      <label class="inline"><input type="checkbox" id="expert"> anotação do especialista (inline anotada)</label>
+    </fieldset>
+    <fieldset>
+      <legend>Fatias</legend>
+      <label>Inline <span class="val" id="iVal"></span></label><input type="range" id="sI" min="0" value="0">
+      <label>Crossline <span class="val" id="xVal"></span></label><input type="range" id="sX" min="0" value="0">
+      <label>Tempo / profundidade <span class="val" id="zVal"></span></label><input type="range" id="sZ" min="0" value="0">
+      <label>Exagero vertical <span class="val" id="exVal"></span></label><input type="range" id="ex" min="0.5" max="4" step="0.1" value="1">
+    </fieldset>
+    <fieldset>
+      <legend>Informações</legend>
+      <table id="info"></table>
+    </fieldset>
+    <div class="sub">Arraste para girar, roda do mouse para zoom, botão direito para mover. Volume em resolução cheia (<span id="dims"></span>): cada pixel das fatias é um voxel da predição, sem redução; de perto o voxel aparece inteiro.</div>
+  </aside>
+  <div id="stage"><div id="loading">carregando volumes…</div>
+    <div class="tag" id="tagA" style="left:8px;--side:#2a78d6"></div><div class="tag" id="tagB" style="left:calc(50% + 8px);--side:#eb6834;display:none"></div>
+    <div id="colorbar" style="display:none"><div>probabilidade de falha</div><div class="bar" id="cbar"></div><div class="ticks"><span>0.4</span><span>0.6</span><span>0.8</span><span>1.0</span></div></div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script id="payload" type="application/json">__PAYLOAD__</script>
+<script>
+const P = JSON.parse(document.getElementById('payload').textContent);
+const [NI, NZ, NX] = P.shape, $ = id => document.getElementById(id), RED = [230, 25, 25], MAX_POINTS = 1500000;
+const status = text => { const el = $('loading'); if (el) el.textContent = text; };
+
+async function inflate(b64) {
+  const bin = atob(b64), bytes = new Uint8Array(bin.length);
+  for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+// .js IRMÃO CARREGADO POR <script> (FUNCIONA ABRINDO O HTML DIRETO DO DISCO); false QUANDO O ARQUIVO NÃO ESTÁ LÁ
+const loadScript = src => new Promise(ok => { const s = document.createElement('script'); s.src = src; s.onload = () => ok(true); s.onerror = () => ok(false); document.head.appendChild(s); });
+
+// JET ENTRE 0,4 E 1,0, COMO A BARRA DE CORES DO WU (SÓ COM A CAIXA MARCADA; O PADRÃO É VERMELHO)
+function jet(p) {
+  const t = Math.min(Math.max((p - 0.4) / 0.6, 0), 1), c = v => Math.min(Math.max(v, 0), 1) * 255;
+  return [c(1.5 - Math.abs(4 * t - 3)), c(1.5 - Math.abs(4 * t - 2)), c(1.5 - Math.abs(4 * t - 1))];
+}
+const JET = Array.from({length: 256}, (_, k) => jet(k / 255));
+$('cbar').style.background = 'linear-gradient(90deg,' + [0, .25, .5, .75, 1].map(t => `rgb(${jet(0.4 + 0.6 * t).map(Math.round)})`).join(',') + ')';
+
+let seismic = null, expert = null, layers = P.layers.map(l => ({...l, data: null}));
+const state = {jet: false, thr: 0.5, mode: 'seismic', points: false, above: true, expert: false, budget: false, a: 0, b: -1, i: 0, x: 0, z: 0, ex: 1};
+const idx = (i, z, x) => (i * NZ + z) * NX + x;
+
+// SÍSMICA: AS PARTES DO CACHE DO BLOCO, NA ORDEM DAS INLINES, NUM VOLUME SÓ
+async function loadSeismic() {
+  const volume = new Uint8Array(NI * NZ * NX);
+  let offset = 0;
+  for (let k = 0; k < P.seismic.length; k++) {
+    status(`carregando a sísmica (parte ${k + 1} de ${P.seismic.length})…`);
+    if (!(await loadScript(P.seismic[k])) || !window.V3D_SEISMIC || !window.V3D_SEISMIC[k]) return null;
+    const part = await inflate(window.V3D_SEISMIC[k]);
+    volume.set(part, offset); offset += part.length; delete window.V3D_SEISMIC[k];
+  }
+  return offset === volume.length ? volume : null;
+}
+
+// PREDIÇÃO DE UMA REDE: DECODIFICADA SÓ QUANDO É ESCOLHIDA; NO MÁXIMO 3 NA MEMÓRIA
+async function layerData(k) {
+  if (k < 0) return null;
+  const l = layers[k];
+  if (!l.data) {
+    status(`carregando a predição de ${l.label}…`);
+    let b64 = l.prob;
+    if (!b64 && l.src && (await loadScript(l.src))) b64 = window.V3D_LAYERS[l.key];
+    l.data = b64 ? await inflate(b64) : new Uint8Array(NI * NZ * NX);
+    if (window.V3D_LAYERS) delete window.V3D_LAYERS[l.key];
+    l.used = performance.now();
+    const loaded = layers.filter(o => o.data).sort((p, q) => p.used - q.used);
+    while (loaded.length > 3) { const old = loaded.shift(); if (old !== l && layers.indexOf(old) !== state.a && layers.indexOf(old) !== state.b) old.data = null; }
+  }
+  l.used = performance.now();
+  return l.data;
+}
+
+function sliceTexture(prob, kind, pos, limit) {
+  const [w, h] = kind === 'i' ? [NX, NZ] : kind === 'x' ? [NI, NZ] : [NX, NI];
+  const data = new Uint8Array(w * h * 4), thr = Math.round(limit * 255), showSeis = state.mode === 'seismic' && seismic;
+  const marks = state.expert && expert && kind === 'i' && pos === P.expert.inline;
+  for (let r = 0; r < h; r++) {
+    const zr = h - 1 - r;
+    for (let c = 0; c < w; c++) {
+      const k = kind === 'i' ? idx(pos, zr, c) : kind === 'x' ? idx(c, zr, pos) : idx(NI - 1 - r, pos, c);
+      const o = (r * w + c) * 4, p = prob[k], s = showSeis ? seismic[k] : 0, mark = marks && expert[zr * NX + c];
+      const rgb = mark ? (p >= thr ? [255, 255, 255] : [255, 235, 59]) : (p >= thr ? (state.jet ? JET[p] : RED) : [s, s, s]);   // PREDIÇÃO EM VERMELHO (OU JET); ANOTAÇÃO AMARELA, BRANCA ONDE A REDE TAMBÉM MARCA
+      data[o] = rgb[0]; data[o + 1] = rgb[1]; data[o + 2] = rgb[2];
+      data[o + 3] = state.above && kind !== 'z' && zr > state.z ? 0 : 255;                                           // PAREDE ABAIXO DA FATIA DE TEMPO
+    }
+  }
+  const tex = new THREE.DataTexture(data, w, h, THREE.RGBAFormat);
+  tex.magFilter = THREE.NearestFilter;                     // DE PERTO: O VOXEL INTEIRO, SEM INTERPOLAR
+  tex.minFilter = THREE.LinearMipmapLinearFilter;          // DE LONGE: MIPMAP, PARA O TRAÇO FINO NÃO VIRAR PONTILHADO
+  tex.generateMipmaps = true; tex.needsUpdate = true;
+  return tex;
+}
+
+const W = NX, H = NZ, D = NI;
+function makeScene() {
+  const scene = new THREE.Scene(), group = new THREE.Group();
+  scene.add(group);
+  const mat = () => new THREE.MeshBasicMaterial({side: THREE.DoubleSide, transparent: true, alphaTest: 0.5});
+  const pi = new THREE.Mesh(new THREE.PlaneGeometry(W, H), mat());
+  const px = new THREE.Mesh(new THREE.PlaneGeometry(D, H), mat()); px.rotation.y = -Math.PI / 2;
+  const pz = new THREE.Mesh(new THREE.PlaneGeometry(W, D), mat()); pz.rotation.x = -Math.PI / 2;
+  const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(W, H, D)), new THREE.LineBasicMaterial({color: 0x888888}));
+  box.position.set(W / 2, -H / 2, D / 2);
+  group.add(pi, px, pz, box);
+  return {scene, group, pi, px, pz, cloud: null};
+}
+const views = [makeScene(), makeScene()];
+
+function placeSlices(v) {
+  v.pi.position.set(W / 2, -H / 2, state.i + 0.5);
+  v.px.position.set(state.x + 0.5, -H / 2, D / 2);
+  v.pz.position.set(W / 2, -(state.z + 0.5), D / 2);
+  v.group.scale.set(1, state.ex, 1);
+}
+
+function paint(v, prob, limit) {
+  for (const [mesh, kind, pos] of [[v.pi, 'i', state.i], [v.px, 'x', state.x], [v.pz, 'z', state.z]]) {
+    if (mesh.material.map) mesh.material.map.dispose();
+    mesh.material.map = prob ? sliceTexture(prob, kind, pos, limit) : null; mesh.material.needsUpdate = true;
+  }
+}
+
+// VOXELS 3D ACIMA DO LIMIAR (OPCIONAL); ACIMA DE MAX_POINTS, UM A CADA step PARA O NAVEGADOR AGUENTAR (AS FATIAS NUNCA SÃO AMOSTRADAS)
+function cloud(v, prob, limit) {
+  if (v.cloud) { v.group.remove(v.cloud); v.cloud.geometry.dispose(); v.cloud = null; }
+  if (!prob || !state.points) return;
+  const thr = Math.round(limit * 255), zmax = state.above ? state.z : NZ;
+  let n = 0;
+  for (let i = 0; i < NI; i++) for (let z = 0; z < zmax; z++) { const base = idx(i, z, 0); for (let x = 0; x < NX; x++) if (prob[base + x] >= thr) n++; }
+  const step = Math.max(1, Math.ceil(n / MAX_POINTS)), pos = new Float32Array(3 * Math.ceil(n / step) + 3), col = new Float32Array(pos.length);
+  let m = 0, c = 0;
+  for (let i = 0; i < NI; i++) for (let z = 0; z < zmax; z++) for (let x = 0; x < NX; x++) {
+    const p = prob[idx(i, z, x)];
+    if (p < thr || (c++ % step)) continue;
+    pos[3 * m] = x + 0.5; pos[3 * m + 1] = -(z + 0.5); pos[3 * m + 2] = i + 0.5;
+    const rgb = state.jet ? JET[p] : RED; col[3 * m] = rgb[0] / 255; col[3 * m + 1] = rgb[1] / 255; col[3 * m + 2] = rgb[2] / 255; m++;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos.subarray(0, 3 * m), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col.subarray(0, 3 * m), 3));
+  v.cloud = new THREE.Points(geo, new THREE.PointsMaterial({size: 1.6, vertexColors: true, sizeAttenuation: true}));
+  v.group.add(v.cloud);
+  if (step > 1) $('warn').textContent = `voxels 3D: 1 a cada ${step} (${n.toLocaleString('pt-BR')} acima do limiar); as fatias mostram todos`;
+}
+
+const stage = $('stage'), renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setPixelRatio(window.devicePixelRatio); renderer.setScissorTest(true);
+stage.appendChild(renderer.domElement);
+const camera = new THREE.PerspectiveCamera(40, 1, 1, 1e6), size = Math.max(W, H, D);
+const slab = D < 0.3 * Math.max(W, H);                                                                     // LÂMINA (PATCH DO MARLIM): OLHA A FACE INLINE DE FRENTE
+if (slab) camera.position.set(W * 0.5 + 0.45 * size, -H * 0.5 + 0.35 * size, D * 0.5 + 1.25 * size); else camera.position.set(W * 1.25, size * 0.9, D * 1.6);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(W / 2, -H / 2, D / 2); controls.update();
+
+function resize() {
+  const w = stage.clientWidth, h = Math.max(stage.clientHeight, 300), split = state.b >= 0 ? 2 : 1;
+  renderer.setSize(w, h); camera.aspect = (w / split) / h; camera.zoom = split > 1 ? 0.7 : 1; camera.updateProjectionMatrix(); render();
+}
+function render() {
+  const w = stage.clientWidth, h = Math.max(stage.clientHeight, 300), split = state.b >= 0 ? 2 : 1;
+  for (let k = 0; k < split; k++) {
+    renderer.setViewport(k * w / split, 0, w / split, h); renderer.setScissor(k * w / split, 0, w / split, h);
+    renderer.render(views[k].scene, camera);
+  }
+}
+controls.addEventListener('change', render);
+window.addEventListener('resize', resize);
+
+const marked = (k, t) => { const hist = layers[k].hist; let a = 0, n = 0; hist.forEach((v, j) => { n += v; if (j >= t) a += v; }); return a / n; };
+// LIMIAR DE CADA LADO: O DO CONTROLE; NO ORÇAMENTO IGUAL, O LADO B GANHA O LIMIAR (EM PASSOS DE 1/255, DO HISTOGRAMA) QUE FAZ ELE MARCAR A MESMA FRAÇÃO QUE O A
+function thrOf(k) {
+  if (!state.budget || k !== state.b || k < 0) return state.thr;
+  const target = marked(state.a, Math.round(state.thr * 255)), lo = Math.round((P.floor || 0.05) * 255);
+  let best = 255, err = 2;
+  for (let t = lo; t < 256; t++) { const e = Math.abs(marked(k, t) - target); if (e < err) { err = e; best = t; } }
+  return best / 255;
+}
+const fraction = k => 100 * marked(k, Math.round(thrOf(k) * 255));
+function info(k) { $('info').innerHTML = Object.entries({...P.meta, ...layers[k].info}).map(([key, v]) => `<tr><td>${key}</td><td>${typeof v === 'object' ? JSON.stringify(v) : v}</td></tr>`).join(''); }
+
+let busy = Promise.resolve();
+async function update(what) {
+  $('thrVal').textContent = state.thr.toFixed(2);
+  $('iVal').textContent = state.i + P.origin[0]; $('xVal').textContent = state.x + P.origin[2]; $('zVal').textContent = state.z + P.origin[1];
+  $('exVal').textContent = state.ex.toFixed(1) + '×';
+  const tag = (k, el) => { const l = layers[k]; el.innerHTML = ''; const b = document.createElement('b'); b.textContent = l.label; el.appendChild(b); for (const line of [l.sub, `limiar ${thrOf(k).toFixed(2)} · ${fraction(k).toFixed(2)}% do volume marcado`]) { if (!line) continue; const s = document.createElement('span'); s.textContent = line; el.appendChild(s); } };
+  tag(state.a, $('tagA')); $('tagB').style.display = state.b >= 0 ? '' : 'none';
+  if (state.b >= 0) tag(state.b, $('tagB'));
+  $('fraction').textContent = `${fraction(state.a).toFixed(2)}% do volume acima do limiar` + (state.b >= 0 ? ` · ${fraction(state.b).toFixed(2)}% (comparação${state.budget ? `, limiar ${thrOf(state.b).toFixed(2)}` : ''})` : '');
+  const [pa, pb] = [await layerData(state.a), await layerData(state.b)];
+  [[views[0], pa, thrOf(state.a)], [views[1], pb, thrOf(state.b)]].forEach(([v, prob, limit]) => { placeSlices(v); paint(v, prob, limit); if (what !== 'slices' || (state.above && state.points)) cloud(v, prob, limit); });
+  info(state.a); const el = $('loading'); if (el) el.remove(); resize();
+  if (window.parent !== window) window.parent.postMessage({type: 'view3d-state', a: layers[state.a].key, b: state.b >= 0 ? layers[state.b].key : null, thr: state.thr, thrB: state.b >= 0 ? thrOf(state.b) : null, fracA: fraction(state.a), fracB: state.b >= 0 ? fraction(state.b) : null, mode: state.mode, jet: state.jet, budget: state.budget}, '*');
+}
+
+// COMANDOS DE FORA (O PAINEL DO Documents/README.html POR postMessage, OU O #a=..&b=.. DO LINK): REDE POR ÍNDICE OU PELA CHAVE grupo__modelo
+const pick = v => (v === undefined || v === null || v === '') ? undefined : /^-?\d+$/.test(String(v)) ? +v : layers.findIndex(l => l.key === v);
+const flag = v => v === true || v === '1' || v === 'true';
+function apply(m) {
+  const a = pick(m.a), b = pick(m.b);
+  if (a !== undefined && a >= 0) state.a = a;
+  if (b !== undefined) state.b = b;
+  if (m.thr !== undefined) state.thr = Math.max(P.floor || 0.05, +m.thr);
+  if (m.mode && (m.mode === 'mask' || seismic)) state.mode = m.mode;
+  if (m.jet !== undefined) state.jet = flag(m.jet);
+  if (m.budget !== undefined) state.budget = flag(m.budget);
+  if (m.points !== undefined) state.points = flag(m.points);
+  $('layerA').value = state.a; $('layerB').value = state.b; $('thr').value = state.thr;
+  document.querySelector(`input[name=mode][value=${state.mode}]`).checked = true;
+  $('jet').checked = state.jet; $('budget').checked = state.budget; $('points').checked = state.points; $('colorbar').style.display = state.jet ? '' : 'none';
+}
+const parseHash = () => Object.fromEntries(location.hash.slice(1).split('&').filter(Boolean).map(kv => kv.split('=').map(decodeURIComponent)));
+let ready = false, pending = {};                                                                                       // COMANDO QUE CHEGA ANTES DA SÍSMICA CARREGAR ESPERA O FIM DA ABERTURA
+window.addEventListener('message', e => { if (!e.data || e.data.type !== 'view3d') return; if (!ready) { Object.assign(pending, e.data); return; } apply(e.data); later('layer'); });
+window.addEventListener('hashchange', () => { apply(parseHash()); later('layer'); });
+
+let timer = null;
+const later = what => { clearTimeout(timer); timer = setTimeout(() => { busy = busy.then(() => update(what)); }, 60); };
+$('thr').oninput = e => { state.thr = +e.target.value; later('thr'); };
+document.querySelectorAll('input[name=mode]').forEach(r => r.onchange = e => { state.mode = e.target.value; later('mode'); });
+$('jet').onchange = e => { state.jet = e.target.checked; $('colorbar').style.display = state.jet ? '' : 'none'; later('points'); };
+$('points').onchange = e => { state.points = e.target.checked; later('points'); };
+$('above').onchange = e => { state.above = e.target.checked; later('points'); };
+$('expert').onchange = e => { state.expert = e.target.checked; if (state.expert && P.expert) { state.i = P.expert.inline; $('sI').value = state.i; } later('mode'); };
+$('sI').oninput = e => { state.i = +e.target.value; later('slices'); };
+$('sX').oninput = e => { state.x = +e.target.value; later('slices'); };
+$('sZ').oninput = e => { state.z = +e.target.value; later('slices'); };
+$('ex').oninput = e => { state.ex = +e.target.value; placeSlices(views[0]); placeSlices(views[1]); $('exVal').textContent = state.ex.toFixed(1) + '×'; render(); };
+$('layerA').onchange = e => { state.a = +e.target.value; later('layer'); };
+$('layerB').onchange = e => { state.b = +e.target.value; later('layer'); };
+$('budget').onchange = e => { state.budget = e.target.checked; later('thr'); };
+
+(async () => {
+  $('title').textContent = P.title; $('subtitle').textContent = P.subtitle;
+  $('dims').textContent = `${NI} × ${NZ} × ${NX} voxels`;
+  seismic = await loadSeismic();
+  if (!seismic) { $('warn').textContent = 'sísmica do bloco não encontrada (o HTML lê Blocks/<bloco>/files/cache/view3d pelo caminho relativo): só a predição, no fundo preto'; state.mode = 'mask'; document.querySelector('input[value=mask]').checked = true; }
+  if (P.expert) { status('carregando a anotação…'); expert = await inflate(P.expert.data); } else $('expert').parentElement.style.display = 'none';
+  const GROUPS = {wu: 'Referências (Wu, Zu)', zu: 'Referências (Wu, Zu)', Backup: 'Seus modelos (Model/Backup)', controle: 'Ablação (aux/controle)'};
+  const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  let options = '', open = null;
+  layers.forEach((l, k) => { const g = GROUPS[(l.info || {}).grupo] || ''; if (g !== open) { options += (open !== null ? '</optgroup>' : '') + (g ? `<optgroup label="${esc(g)}">` : ''); open = g; } options += `<option value="${k}" title="${esc(l.label)}">${esc(l.label)}</option>`; });
+  options += open ? '</optgroup>' : '';
+  $('layerA').innerHTML = options;
+  $('layerB').innerHTML = '<option value="-1">— nenhuma —</option>' + options;
+  if (layers.length < 2) $('layerBox').style.display = 'none';
+  for (const [id, n] of [['sI', NI], ['sX', NX], ['sZ', NZ]]) $(id).max = n - 1;
+  $('thr').min = P.floor || 0.05;
+  state.i = P.start ? P.start[0] : 0; state.z = P.start ? P.start[1] : Math.floor(NZ * 0.75); state.x = P.start ? P.start[2] : 0;   // PAREDES NAS FACES DO FUNDO, COMO NA FIGURA DO WU
+  state.thr = P.threshold || 0.5;
+  if (layers.length < 2) $('budgetLabel').style.display = 'none';
+  const first = {...parseHash(), ...pending};
+  if (flag(first.embed)) document.body.classList.add('embed');
+  apply(first); ready = true;                                                                                                   // #a=0&b=2&thr=0.4&budget=1&mode=mask ABRE JÁ NESSA SELEÇÃO
+  $('sI').value = state.i; $('sX').value = state.x; $('sZ').value = state.z;
+  busy = busy.then(() => update('all'));
+})();
+</script>
+</body>
+</html>

@@ -3,44 +3,26 @@
         "path": "model_7",
         "loss": "bce_balanced",
         "scheduler": "constant",
-        "epochs": 70,
-        "batch_size": 1,
+        "epochs": 100,
+        "batch_size": 2,
         "ema": false,
         "trial": 0,
-        "val_iou": 0.606094241142273,
-        "test_iou": 0.6192352175712585
+        "val_iou": 0.626437246799469,
+        "test_iou": 0.602906346321106
     },
     "processing": {
-        "network": "dbrnet",
-        "dataset": "dataset_74",
+        "network": "resaceunet_grva",
+        "dataset": "dataset_wu",
         "img_size": null,
-        "scaling": "normalize",
+        "scaling": "percentile",
         "lr": 0.0001,
         "loss": "bce_balanced",
-        "batch_size": 1,
+        "batch_size": 2,
         "scheduler": "constant",
         "dropout": 0.1,
+        "epochs": 100,
+        "patience": 100,
         "num_filters": 16,
-        "ema": false,
-        "amp": true,
-        "epochs": 70,
-        "patience": 70,
-        "n_trials": 1,
-        "augmentations": {
-            "flip": {
-                "axes": [
-                    1
-                ],
-                "prob": 0.5
-            },
-            "gain": {
-                "factor": [
-                    0.5,
-                    1.0
-                ]
-            },
-            "n_aug": 2
-        },
         "trial": 0
     },
     "division": {
@@ -54,7 +36,7 @@
         }
     },
     "model": {
-        "network": "dbrnet",
+        "network": "resaceunet_grva",
         "img_size": [
             128,
             128,
@@ -67,23 +49,23 @@
         "lr": 0.0001
     },
     "iou": {
-        "mean": 0.6192352175712585
+        "mean": 0.602906346321106
     },
     "test": {
-        "dataset_74": {
+        "dataset_wu": {
             "tiles": 10,
-            "scaling": "normalize",
-            "accuracy": 0.9551212310791015,
-            "precision": 0.6367853391161451,
-            "recall": 0.9573879859965686,
-            "iou": 0.6192347199471154,
-            "f1": 0.764848619312387,
-            "auc": 0.9902559910698866,
-            "tp": 1530625,
-            "fp": 873050,
-            "fn": 68126,
-            "tn": 18499719,
-            "timestamp": "23/11/26 18:47:42"
+            "scaling": "percentile",
+            "accuracy": 0.9587261199951171,
+            "precision": 0.6318736558480617,
+            "recall": 0.9293338867953348,
+            "iou": 0.6029056223259842,
+            "f1": 0.7522659025315601,
+            "auc": 0.9862670857438094,
+            "tp": 1314198,
+            "fp": 765645,
+            "fn": 99931,
+            "tn": 18791746,
+            "timestamp": "25/11/26 08:54:33"
         }
     }
 }

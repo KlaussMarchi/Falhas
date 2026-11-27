@@ -1,0 +1,21 @@
+id,img_min,img_max,img_mean,img_std,msk_min,msk_max,shape,img_path,mask_path,scaling
+200.npy,0.0,1.0,0.4970709,0.19482218,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/200.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/200.npy,percentile
+201.npy,0.0,1.0,0.49544188,0.1819102,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/201.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/201.npy,percentile
+202.npy,0.0,1.0,0.49369687,0.18198904,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/202.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/202.npy,percentile
+203.npy,0.0,1.0,0.49632043,0.18516779,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/203.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/203.npy,percentile
+204.npy,0.0,1.0,0.49754006,0.18200026,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/204.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/204.npy,percentile
+205.npy,0.0,1.0,0.4973985,0.18017441,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/205.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/205.npy,percentile
+206.npy,0.0,1.0,0.49487743,0.18216158,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/206.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/206.npy,percentile
+207.npy,0.0,1.0,0.494884,0.19015458,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/207.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/207.npy,percentile
+208.npy,0.0,1.0,0.4949326,0.18483093,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/208.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/208.npy,percentile
+209.npy,0.0,1.0,0.49595606,0.20291086,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/209.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/209.npy,percentile
+210.npy,0.0,1.0,0.49614817,0.19883461,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/210.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/210.npy,percentile
+211.npy,0.0,1.0,0.49595094,0.19549868,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/211.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/211.npy,percentile
+212.npy,0.0,1.0,0.49697772,0.20232478,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/212.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/212.npy,percentile
+213.npy,0.0,1.0,0.49461225,0.19947489,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/213.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/213.npy,percentile
+214.npy,0.0,1.0,0.49668398,0.19637653,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/214.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/214.npy,percentile
+215.npy,0.0,1.0,0.49660715,0.17795807,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/215.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/215.npy,percentile
+216.npy,0.0,1.0,0.49495178,0.19377147,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/216.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/216.npy,percentile
+217.npy,0.0,1.0,0.49568933,0.2010145,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/217.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/217.npy,percentile
+218.npy,0.0,1.0,0.4965217,0.19725071,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/218.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/218.npy,percentile
+219.npy,0.0,1.0,0.49662125,0.19177127,0.0,1.0,"(128, 128, 128)",/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/images/219.npy,/home/lamcegrva/Projects/Falhas/Dataset/dataset_wu/masks/219.npy,percentile

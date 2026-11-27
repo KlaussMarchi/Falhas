@@ -1,4 +1,4 @@
-import os, re, gc, json, cv2
+import os, re, gc, json, gzip, base64, cv2
 import numpy as np
 import pandas as pd
 import torch
@@ -132,6 +132,54 @@ def getBlockInfo(grid, folder, n=100):
         'desvio': np.sqrt(stats[:, 3].mean() - mean ** 2)
     }
     return pd.DataFrame([info])
+
+
+# VOLUME INTEIRO DO BLOCO PELOS NÚCLEOS, GRAVADO EM cache NA PRIMEIRA VEZ; context > 0 (SÓ NUMA GRADE DE UMA CAMADA DE INLINES, COMO OS PATCHES
+# DO MARLIM) GUARDA TAMBÉM context INLINES REAIS DE CADA LADO DO NÚCLEO, A VIZINHANÇA QUE O TILE TEM E O NÚCLEO NÃO
+def getVolume(grid, folder, cache, context=0):
+    if os.path.exists(cache):
+        return np.load(cache, mmap_mode='r')
+
+    if context and (grid.counts[0] != 1 or context > grid.ov[0]):
+        raise ValueError(f'contexto de {context} inlines pede uma camada só de tiles e no máximo {grid.ov[0]}')
+
+    missing = grid.missing(folder)
+    if missing:
+        raise FileNotFoundError(f'{folder}: faltam {len(missing)} de {len(grid.names())} tiles')
+
+    volume = np.zeros((grid.shape[0] + 2 * context, *grid.shape[1:]), np.float32)
+    lo     = grid.ov
+
+    for name in tqdm(grid.names(), desc=f'volume {os.path.basename(cache)}'):
+        (d, h, w), (cd, ch, cw) = grid.core(name)
+        tile = getDAT(f'{folder}/{name}', grid.size)
+        volume[d:d + cd + 2 * context, h:h + ch, w:w + cw] = tile[lo[0] - context:lo[0] + cd + context, lo[1]:lo[1] + ch, lo[2]:lo[2] + cw]
+
+    os.makedirs(os.path.dirname(cache), exist_ok=True)
+    np.save(cache, volume)
+    return np.load(cache, mmap_mode='r')
+
+
+# CORTA UM VOLUME EM TILES NO FORMATO DOS BLOCOS: NÚCLEO DE size - 2 * overlap NO MEIO DO TILE, O ÚLTIMO DE CADA EIXO ENCOSTADO NO FIM E BORDA
+# ESPELHADA (np.pad 'reflect', COMO O GERADOR DOS TILES DO F3); GRAVA OS .dat E O patch_metadata.json QUE O TileGrid LÊ
+def writeTiles(volume, folder, meta, metaPath=None, size=128, overlap=32):
+    stride = size - 2 * overlap
+    shape  = tuple(int(n) for n in volume.shape)
+    counts = [int(np.ceil(n / stride)) for n in shape]
+    names  = [f'patch_d{d:03d}_h{h:03d}_w{w:03d}.dat' for d, h, w in np.ndindex(*counts)]
+    meta   = {'original_shape': list(shape), 'patch_size': size, 'overlap_percent': 100.0 * overlap / size, 'overlap_voxels': overlap, 'do_overlap': True, 'stride': stride, 'grid_shape': counts, 'patch_files': names, 'dtype': 'float32', 'total_patches': len(names), **meta}
+
+    metaPath = metaPath or f'{folder}/patch_metadata.json'
+    os.makedirs(folder, exist_ok=True)
+    json.dump(meta, open(metaPath, 'w'), indent=2)
+    grid   = TileGrid(metaPath)
+    padded = np.pad(np.asarray(volume, np.float32), overlap, mode='reflect')
+
+    for name in tqdm(names, desc=f'tiles {os.path.basename(folder)}'):
+        (d, h, w), _ = grid.core(name)
+        padded[d:d + size, h:h + size, w:w + size].tofile(f'{folder}/{name}')
+
+    return grid
 
 
 # SÍSMICA DE UMA INLINE, MONTADA SÓ PELOS TILES QUE A COBREM NA PRIMEIRA VEZ E LIDA DO CACHE DEPOIS
@@ -908,6 +956,76 @@ class BlockSection:
             ax.imshow(rgba, aspect='auto', zorder=z)
 
 
+# VISUALIZADOR 3D EM HTML (FATIAS INLINE, CROSSLINE E TEMPO COM A PREDIÇÃO POR CIMA, COMO A FIGURA 3D DO WU), EM RESOLUÇÃO CHEIA: NADA É REDUZIDO.
+# A PROBABILIDADE VAI EM uint8 (PASSO DE 1/255) COM O PISO floor (ABAIXO DELE O VOXEL NUNCA APARECE: É O MENOR LIMIAR DO HTML), EM gzip + base64,
+# EMBUTIDA NO HTML OU, COM external, NUM .js AO LADO (CARREGADO SÓ QUANDO A REDE É ESCOLHIDA). A SÍSMICA DO BLOCO É GRAVADA UMA VEZ EM cache
+# (PARTES .js DE ATÉ PART VOXELS, CARREGADAS PELO HTML POR CAMINHO RELATIVO) E SERVE A TODOS OS MODELOS; A FRAÇÃO ACIMA DO LIMIAR SAI DO HISTOGRAMA
+class Viewer3D:
+    TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'viewer3d.html')
+    PART     = 32_000_000
+
+    def __init__(self, seismic, cache, origin=(0, 0, 0), floor=0.05):
+        self.shape  = tuple(int(n) for n in seismic.shape)
+        self.origin = [int(o) for o in origin]
+        self.floor  = floor
+        self.cache  = cache
+        self.parts  = self.writeSeismic(seismic)
+        self.layers = []
+        self.expert = None
+
+    # PARTES DA SÍSMICA EM cache, AO LONGO DO EIXO DAS INLINES; REGRAVA SE O shape OU A AMOSTRA DE CONFERÊNCIA MUDOU
+    def writeSeismic(self, seismic):
+        step  = max(1, self.PART // (self.shape[1] * self.shape[2]))
+        names = [f'seismic_{k:03d}.js' for k in range(int(np.ceil(self.shape[0] / step)))]
+        check = {'shape': list(self.shape), 'amostra': float(np.round(np.asarray(seismic[::17, ::13, ::11], np.float64).sum(), 3)), 'partes': names}
+        meta  = f'{self.cache}/seismic.json'
+
+        if os.path.exists(meta) and json.load(open(meta)) == check and all(os.path.exists(f'{self.cache}/{n}') for n in names):
+            return names
+
+        os.makedirs(self.cache, exist_ok=True)
+        for k, name in enumerate(names):
+            block = np.round(np.clip(np.asarray(seismic[k * step:(k + 1) * step], np.float32), 0, 1) * 255).astype(np.uint8)
+            open(f'{self.cache}/{name}', 'w').write(f"(window.V3D_SEISMIC = window.V3D_SEISMIC || {{}})[{k}] = '{self.encode(block)}';\n")
+        json.dump(check, open(meta, 'w'))
+        return names
+
+    def addLayer(self, label, probs, info=None, external=None):
+        if tuple(probs.shape) != self.shape:
+            raise ValueError(f'{label}: probabilidade {tuple(probs.shape)} fora do shape da sísmica {self.shape}')
+
+        quantized = np.round(np.clip(np.asarray(probs, np.float32), 0, 1) * 255).astype(np.uint8)
+        hist      = np.bincount(quantized.ravel(), minlength=256).tolist()
+        quantized[quantized < round(self.floor * 255)] = 0
+        layer     = {'label': label, 'info': info or {}, 'hist': hist, 'prob': None, 'src': None, 'key': f'layer{len(self.layers)}'}
+
+        if external:
+            os.makedirs(external, exist_ok=True)
+            layer['src'] = f'{external}/{layer["key"]}.js'
+            open(layer['src'], 'w').write(f"(window.V3D_LAYERS = window.V3D_LAYERS || {{}})['{layer['key']}'] = '{self.encode(quantized)}';\n")
+        else:
+            layer['prob'] = self.encode(quantized)
+        self.layers.append(layer)
+
+    # ANOTAÇÃO 2D (z, xline) NA FATIA inline, PARA APARECER NA PAREDE INLINE QUANDO ELA PASSA POR ALI
+    def setExpert(self, inline, raster):
+        self.expert = {'inline': int(inline), 'data': self.encode((np.asarray(raster) > 0).astype(np.uint8))}
+
+    @staticmethod
+    def encode(array):
+        return base64.b64encode(gzip.compress(np.ascontiguousarray(array).tobytes(), 6)).decode('ascii')
+
+    def save(self, path, title, subtitle='', meta=None, start=None, threshold=0.5):
+        folder  = os.path.dirname(os.path.abspath(path))
+        rel     = lambda target: os.path.relpath(os.path.abspath(target), folder).replace(os.sep, '/')
+        layers  = [{**layer, 'src': rel(layer['src']) if layer['src'] else None} for layer in self.layers]
+        payload = {'title': title, 'subtitle': subtitle, 'shape': list(self.shape), 'origin': self.origin, 'meta': meta or {}, 'threshold': threshold, 'floor': self.floor, 'start': list(start) if start else None, 'seismic': [rel(f'{self.cache}/{n}') for n in self.parts], 'expert': self.expert, 'layers': layers}
+        html    = open(self.TEMPLATE, encoding='utf-8').read().replace('__TITLE__', title[:60]).replace('__PAYLOAD__', json.dumps(payload, ensure_ascii=False).replace('</', '<\\/'))
+        os.makedirs(folder, exist_ok=True)
+        open(path, 'w', encoding='utf-8').write(html)
+        return f'{path}: {os.path.getsize(path) / 1e6:.1f} MB, volume {list(self.shape)} em resolução cheia, sísmica em {len(self.parts)} parte(s) de {rel(self.cache)}'
+
+
 # RESUMO DO MODELO PELO INFO.JSON, COM A JANELA DE TREINO NO RÓTULO
 def modelSummary(base, name):
     path = f'{base}/{name}/info.json'
@@ -927,6 +1045,51 @@ def modelSummary(base, name):
         'iou_teste': round(float(iou), 4) if iou is not None else None,
         'rotulo': f'{name} · {network} {window}' + (f' (iou={iou:.3f})' if iou is not None else '')
     }
+
+
+# FICHA DO MODELO PARA O PAINEL DO Viewer3D: REDE, DADO E RECEITA DO info.json E COMO O BLOCO FOI PREDITO (predict.json DA PASTA DO BLOCO)
+def viewerInfo(base, name, blockDir):
+    info    = json.load(open(f'{base}/{name}/info.json')) if os.path.exists(f'{base}/{name}/info.json') else {}
+    run     = json.load(open(f'{blockDir}/predict.json')) if os.path.exists(f'{blockDir}/predict.json') else {}
+    process = info.get('processing', {})
+    model   = info.get('model', {})
+    trainer = info.get('trainer', {})
+    fields  = {
+        'modelo': name,
+        'rede': model.get('network'),
+        'janela de treino': '×'.join(str(s) for s in model.get('img_size', [])) or None,
+        'filtros': model.get('num_filters'),
+        'parâmetros': info.get('parametros'),
+        'dataset': process.get('dataset'),
+        'escalonamento': process.get('scaling'),
+        'loss': process.get('loss') or trainer.get('loss'),
+        'lr': process.get('lr'),
+        'lote': process.get('batch_size'),
+        'agenda': process.get('scheduler'),
+        'épocas': trainer.get('epochs'),
+        'IoU de teste': round(float(trainer['test_iou']), 4) if trainer.get('test_iou') is not None else None,
+        'referência': info.get('referencia'),
+        'origem': info.get('origem'),
+        'receita': info.get('receita') if isinstance(info.get('receita'), str) else None,
+        'predição': run.get('metodo') or (f"janela {run['img_size']}, sobreposição {run.get('overlap')}, {run.get('windows_per_tile')} janelas por tile (BlockPredictor)" if run.get('img_size') else None)
+    }
+    return {key: value for key, value in fields.items() if value not in (None, '', [])}
+
+
+# GRAVA O view3d.html DE UM MODELO NA PASTA DO BLOCO, A PARTIR DO predicted.npy; expert = (inline, raster) PÕE A ANOTAÇÃO NA FATIA INLINE
+def saveViewer(base, name, blockDir, seismic, block, cache, threshold=0.5, origin=(0, 0, 0), expert=None, start=None):
+    if not os.path.exists(f'{blockDir}/predicted.npy'):
+        return f'[{name}] {blockDir}: sem predicted.npy (SAVE_PRED = True) — sem 3D'
+
+    summary = modelSummary(base, name)
+    viewer  = Viewer3D(seismic, cache, origin)
+    viewer.addLayer(summary['rotulo'], np.load(f'{blockDir}/predicted.npy', mmap_mode='r'), viewerInfo(base, name, blockDir))
+
+    if expert is not None:
+        viewer.setExpert(*expert)
+
+    title = f"{block} · {name} ({summary['rede']})"
+    return viewer.save(f'{blockDir}/view3d.html', title, f"dataset {summary['dataset']} · volume {list(seismic.shape)} (inline, z, xline)", {'bloco': block}, start, threshold)
 
 
 # JUNTA AS LINHAS NOVAS AO CSV ANTERIOR: UM PAR (modelo, key) RECALCULADO SUBSTITUI O ANTIGO, E REDE, JANELA E IOU SÃO RELIDOS DO info.json

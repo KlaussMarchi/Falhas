@@ -1,32 +1,28 @@
 {
     "trainer": {
         "path": "model_8",
-        "loss": "dice_focal",
-        "scheduler": "plateau",
-        "epochs": 200,
-        "batch_size": 1,
+        "loss": "bce_balanced",
+        "scheduler": "constant",
+        "epochs": 100,
+        "batch_size": 2,
         "ema": false,
         "trial": 0,
-        "val_iou": 0.7365479469299316,
-        "test_iou": 0.7459027171134949
+        "val_iou": 0.559538722038269,
+        "test_iou": 0.5828407406806946
     },
     "processing": {
-        "network": "macnn",
+        "network": "resaceunet_grva",
         "dataset": "dataset_74",
         "img_size": null,
-        "scaling": "normalize",
-        "lr": 0.001,
-        "loss": "dice_focal",
-        "batch_size": 1,
-        "scheduler": "plateau",
+        "scaling": "percentile",
+        "lr": 0.0001,
+        "loss": "bce_balanced",
+        "batch_size": 2,
+        "scheduler": "constant",
         "dropout": 0.1,
-        "num_filters": 32,
-        "ema": false,
-        "amp": true,
-        "epochs": 200,
-        "patience": 20,
-        "n_trials": 1,
-        "augmentations": null,
+        "epochs": 100,
+        "patience": 100,
+        "num_filters": 16,
         "trial": 0
     },
     "division": {
@@ -40,7 +36,7 @@
         }
     },
     "model": {
-        "network": "macnn",
+        "network": "resaceunet_grva",
         "img_size": [
             128,
             128,
@@ -49,27 +45,27 @@
         "classes": 1,
         "channels": 1,
         "dropout": 0.1,
-        "num_filters": 32,
-        "lr": 0.001
+        "num_filters": 16,
+        "lr": 0.0001
     },
     "iou": {
-        "mean": 0.7459027171134949
+        "mean": 0.5828407406806946
     },
     "test": {
         "dataset_74": {
             "tiles": 10,
-            "scaling": "normalize",
-            "accuracy": 0.9780052661895752,
-            "precision": 0.8621217021905172,
-            "recall": 0.8469348885473723,
-            "iou": 0.7459027456052743,
-            "f1": 0.8544608197482187,
-            "auc": 0.9906553189091787,
-            "tp": 1354038,
-            "fp": 216550,
-            "fn": 244713,
-            "tn": 19156219,
-            "timestamp": "23/11/26 22:58:18"
+            "scaling": "percentile",
+            "accuracy": 0.9511569976806641,
+            "precision": 0.6255417225235494,
+            "recall": 0.8951612852783204,
+            "iou": 0.5828417741417873,
+            "f1": 0.7364498254511922,
+            "auc": 0.9781384048076418,
+            "tp": 1431140,
+            "fp": 856701,
+            "fn": 167611,
+            "tn": 18516068,
+            "timestamp": "25/11/26 10:38:58"
         }
     }
 }

@@ -10,6 +10,7 @@ from .types.Unet3D_V2 import Unet3D_V2
 from .types.ResACEUnet import ResACEUnet
 from .types.ResACEUnet_Wu import ResACEUnetWu
 from .types.ResACEUnet_Zu import ResACEUnetZu
+from .types.ResACEUnet_Grva2 import ResACEUnetGrva2
 from .types.FaultSegNet import FaultSegNet
 from .types.NRUNet import NRUNet
 from .types.MACNN  import MACNN
@@ -71,6 +72,10 @@ class ModelNetwork:
         # RESACEUNET DO ARTIGO, ENCODER DE 3 ESTÁGIOS (ZU ET AL. 2024, PRIMEIRO COMMIT DE 05/12/2024 EM github.com/39c5bb-miku/ResACEUnet)
         if self.network == 'resaceunet_zu':
             return ResACEUnetZu(in_channels=self.channels, out_channels=classes, img_size=self.img_size, feature_size=self.num_filters, hidden_size=self.num_filters * 32, dims=[self.num_filters * m for m in (2, 4, 32)], dropout_rate=self.dropout)
+
+        # HÍBRIDA GRVA: O ESQUELETO DA UNET DO WU (unet_wu_z, ENTRADA EM z) COM PARES RESIDUAIS E OS BLOCOS ACE DO ARTIGO DO ZU NOS NÍVEIS 1/4 E 1/8
+        if self.network == 'resaceunet_grva_2':
+            return ResACEUnetGrva2(in_channels=self.channels, num_classes=classes, base_filters=self.num_filters, img_size=self.img_size, dropout=self.dropout, center=0.495343, scale=0.197027)
 
         # MACNN MULTIESCALA COM ATENÇÃO (GAO ET AL. 2022, 3 - Automatic fault detection...pdf)
         if self.network == 'macnn':

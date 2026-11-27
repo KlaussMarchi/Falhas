@@ -4,29 +4,25 @@
         "loss": "dice_focal",
         "scheduler": "plateau",
         "epochs": 200,
-        "batch_size": 1,
+        "batch_size": 2,
         "ema": false,
         "trial": 0,
-        "val_iou": 0.7302981615066528,
-        "test_iou": 0.7404510974884033
+        "val_iou": 0.698893666267395,
+        "test_iou": 0.7137706875801086
     },
     "processing": {
         "network": "resaceunet_grva",
         "dataset": "dataset_74",
         "img_size": null,
-        "scaling": "normalize",
+        "scaling": "percentile",
         "lr": 0.001,
         "loss": "dice_focal",
-        "batch_size": 1,
+        "batch_size": 2,
         "scheduler": "plateau",
         "dropout": 0.1,
-        "num_filters": 16,
-        "ema": false,
-        "amp": true,
         "epochs": 200,
         "patience": 20,
-        "n_trials": 1,
-        "augmentations": null,
+        "num_filters": 16,
         "trial": 0
     },
     "division": {
@@ -53,23 +49,23 @@
         "lr": 0.001
     },
     "iou": {
-        "mean": 0.7404510974884033
+        "mean": 0.7137706875801086
     },
     "test": {
         "dataset_74": {
             "tiles": 10,
-            "scaling": "normalize",
-            "accuracy": 0.9770959854125977,
-            "precision": 0.8447447963962698,
-            "recall": 0.8570803083156789,
-            "iou": 0.7404438584451445,
-            "f1": 0.850867845983418,
-            "auc": 0.9921581067310307,
-            "tp": 1370258,
-            "fp": 251839,
-            "fn": 228493,
-            "tn": 19120930,
-            "timestamp": "24/11/26 07:24:14"
+            "scaling": "percentile",
+            "accuracy": 0.9746274948120117,
+            "precision": 0.8360349893170808,
+            "recall": 0.829949129038856,
+            "iou": 0.7137680730636445,
+            "f1": 0.8329809433171033,
+            "auc": 0.9860809596148934,
+            "tp": 1326882,
+            "fp": 260231,
+            "fn": 271869,
+            "tn": 19112538,
+            "timestamp": "25/11/26 19:47:55"
         }
     }
 }

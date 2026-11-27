@@ -4,29 +4,25 @@
         "loss": "dice_focal",
         "scheduler": "plateau",
         "epochs": 200,
-        "batch_size": 1,
+        "batch_size": 2,
         "ema": false,
         "trial": 0,
-        "val_iou": 0.6304397583007812,
-        "test_iou": 0.6368220448493958
+        "val_iou": 0.7125529646873474,
+        "test_iou": 0.7172271609306335
     },
     "processing": {
-        "network": "fault_edge_former",
+        "network": "macnn",
         "dataset": "dataset_74",
         "img_size": null,
-        "scaling": "normalize",
+        "scaling": "percentile",
         "lr": 0.001,
         "loss": "dice_focal",
-        "batch_size": 1,
+        "batch_size": 2,
         "scheduler": "plateau",
         "dropout": 0.1,
-        "num_filters": 9,
-        "ema": false,
-        "amp": true,
         "epochs": 200,
         "patience": 20,
-        "n_trials": 1,
-        "augmentations": null,
+        "num_filters": 16,
         "trial": 0
     },
     "division": {
@@ -40,7 +36,7 @@
         }
     },
     "model": {
-        "network": "fault_edge_former",
+        "network": "macnn",
         "img_size": [
             128,
             128,
@@ -49,27 +45,27 @@
         "classes": 1,
         "channels": 1,
         "dropout": 0.1,
-        "num_filters": 9,
+        "num_filters": 16,
         "lr": 0.001
     },
     "iou": {
-        "mean": 0.6368220448493958
+        "mean": 0.7172271609306335
     },
     "test": {
         "dataset_74": {
             "tiles": 10,
-            "scaling": "normalize",
-            "accuracy": 0.9656928062438965,
-            "precision": 0.7674400213641288,
-            "recall": 0.789101617450122,
-            "iou": 0.6368220707089318,
-            "f1": 0.7781200927149213,
-            "auc": 0.9731694918457112,
-            "tp": 1261577,
-            "fp": 382300,
-            "fn": 337174,
-            "tn": 18990469,
-            "timestamp": "24/11/26 04:55:04"
+            "scaling": "percentile",
+            "accuracy": 0.9748892784118652,
+            "precision": 0.8351967865358654,
+            "recall": 0.8354684375490617,
+            "iou": 0.7172284402861813,
+            "f1": 0.8353325899571673,
+            "auc": 0.9882210762191677,
+            "tp": 1335706,
+            "fp": 263565,
+            "fn": 263045,
+            "tn": 19109204,
+            "timestamp": "25/11/26 17:17:10"
         }
     }
 }

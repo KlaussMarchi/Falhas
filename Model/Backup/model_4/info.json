@@ -3,16 +3,16 @@
         "path": "model_4",
         "loss": "bce_balanced",
         "scheduler": "constant",
-        "epochs": 70,
+        "epochs": 100,
         "batch_size": 2,
         "ema": false,
         "trial": 0,
-        "val_iou": 0.688593327999115,
-        "test_iou": 0.6488690376281738
+        "val_iou": 0.6015111804008484,
+        "test_iou": 0.6172711849212646
     },
     "processing": {
         "network": "dbrnet",
-        "dataset": "dataset_wu",
+        "dataset": "dataset_74",
         "img_size": null,
         "scaling": "percentile",
         "lr": 0.0001,
@@ -20,27 +20,10 @@
         "batch_size": 2,
         "scheduler": "constant",
         "dropout": 0.1,
+        "epochs": 100,
+        "patience": 100,
         "num_filters": 16,
-        "ema": false,
-        "epochs": 70,
-        "patience": 70,
-        "n_trials": 1,
-        "trial": 0,
-        "augmentations": {
-            "flip": {
-                "axes": [
-                    1
-                ],
-                "prob": 0.5
-            },
-            "gain": {
-                "factor": [
-                    0.5,
-                    1.0
-                ]
-            },
-            "n_aug": 2
-        }
+        "trial": 0
     },
     "division": {
         "val_size": 0.047619047619047616,
@@ -66,23 +49,23 @@
         "lr": 0.0001
     },
     "iou": {
-        "mean": 0.6488690376281738
+        "mean": 0.6172711849212646
     },
     "test": {
-        "dataset_wu": {
+        "dataset_74": {
             "tiles": 10,
             "scaling": "percentile",
-            "accuracy": 0.9648534774780273,
-            "precision": 0.6653724496899204,
-            "recall": 0.9631752124452578,
-            "iou": 0.648865958754341,
-            "f1": 0.7870451267543129,
-            "auc": 0.9927934216171509,
-            "tp": 1362054,
-            "fp": 685001,
-            "fn": 52075,
-            "tn": 18872390,
-            "timestamp": "23/11/26 13:17:30"
+            "accuracy": 0.9563826560974121,
+            "precision": 0.6508961838561165,
+            "recall": 0.9227778434540463,
+            "iou": 0.6172733716204173,
+            "f1": 0.7633506894408877,
+            "auc": 0.9817014832698079,
+            "tp": 1475292,
+            "fp": 791263,
+            "fn": 123459,
+            "tn": 18581506,
+            "timestamp": "24/11/26 23:30:28"
         }
     }
 }

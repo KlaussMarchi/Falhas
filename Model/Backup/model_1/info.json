@@ -1,30 +1,28 @@
 {
     "trainer": {
         "path": "model_1",
-        "loss": "dice_focal",
-        "scheduler": "plateau",
-        "epochs": 200,
+        "loss": "bce_balanced",
+        "scheduler": "constant",
+        "epochs": 100,
         "batch_size": 2,
         "ema": false,
         "trial": 0,
-        "val_iou": 0.7202193737030029,
-        "test_iou": 0.7316828966140747
+        "val_iou": 0.5805991888046265,
+        "test_iou": 0.5576539039611816
     },
     "processing": {
-        "network": "dbrnet",
-        "dataset": "dataset_74",
+        "network": "unet_wu_z",
+        "dataset": "dataset_wu",
         "img_size": null,
-        "scaling": "normalize",
-        "lr": 0.001,
-        "loss": "dice_focal",
+        "scaling": "percentile",
+        "lr": 0.0001,
+        "loss": "bce_balanced",
         "batch_size": 2,
-        "scheduler": "plateau",
-        "dropout": 0.1,
+        "scheduler": "constant",
+        "dropout": 0.0,
+        "epochs": 100,
+        "patience": 100,
         "num_filters": 16,
-        "ema": false,
-        "epochs": 200,
-        "patience": 20,
-        "n_trials": 1,
         "trial": 0
     },
     "division": {
@@ -38,7 +36,7 @@
         }
     },
     "model": {
-        "network": "dbrnet",
+        "network": "unet_wu_z",
         "img_size": [
             128,
             128,
@@ -46,28 +44,28 @@
         ],
         "classes": 1,
         "channels": 1,
-        "dropout": 0.1,
+        "dropout": 0.0,
         "num_filters": 16,
-        "lr": 0.001
+        "lr": 0.0001
     },
     "iou": {
-        "mean": 0.7316828966140747
+        "mean": 0.5576539039611816
     },
     "test": {
-        "dataset_74": {
+        "dataset_wu": {
             "tiles": 10,
-            "scaling": "normalize",
-            "accuracy": 0.9765086650848389,
-            "precision": 0.8498520382537098,
-            "recall": 0.840317222631917,
-            "iou": 0.7316882948542759,
-            "f1": 0.8450577358852548,
-            "auc": 0.9887816077098458,
-            "tp": 1343458,
-            "fp": 237356,
-            "fn": 255293,
-            "tn": 19135413,
-            "timestamp": "23/11/26 16:01:20"
+            "scaling": "percentile",
+            "accuracy": 0.9539501190185546,
+            "precision": 0.6128588623024877,
+            "recall": 0.8609235791077051,
+            "iou": 0.5576497359601281,
+            "f1": 0.7160142913854705,
+            "auc": 0.9714109581760155,
+            "tp": 1217457,
+            "fp": 769064,
+            "fn": 196672,
+            "tn": 18788327,
+            "timestamp": "24/11/26 19:51:54"
         }
     }
 }

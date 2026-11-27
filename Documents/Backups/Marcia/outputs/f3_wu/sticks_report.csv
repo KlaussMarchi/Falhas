@@ -1,0 +1,2 @@
+modelo,rede,janela,iou_teste,overlap,inline,fracao_mascara,sticks,len_p50,len_total,dip_p50
+model_1,dbrnet,128×128×128,0.736,0.25,29,0.0728,6,71.5,454,65.3

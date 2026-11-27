@@ -9,3 +9,6 @@
 *.pkl
 Documents/Reference
 Synthetic/files/
+Blocks/*/files/cache/view3d/
+**/view3d.html
+Validation/
